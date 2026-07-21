@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}คลังอะไหล่{% endblock %}
+{% block content %}
+<h1>📦 คลังอะไหล่</h1>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+<p class="hint">อะไหล่ที่มูลค่าการเบิกต่อครั้งเกิน {{ threshold }} บาท ต้องรอผู้จัดการอนุมัติก่อนตัดสต็อก · รูปอะไหล่แนบได้สูงสุด 1 รูปต่อชิ้น (ไม่เกิน {{ max_image_mb }} MB)</p>
+
+<div class="card">
+  <h2>+ เพิ่มอะไหล่ใหม่</h2>
+  <form method="post" action="/admin/inventory/new" enctype="multipart/form-data">
+    <div class="grid">
+      <div><label>รหัสอะไหล่ (SKU)</label><input type="text" name="part_sku" required></div>
+      <div><label>ชื่ออะไหล่</label><input type="text" name="part_name" required></div>
+      <div><label>รุ่นที่ใช้ร่วมกันได้</label><input type="text" name="compatible_models" placeholder="เช่น Kobra 2, Kobra 3"></div>
+      <div><label>จำนวนคงเหลือเริ่มต้น</label><input type="number" name="stock_quantity" value="0" min="0"></div>
+      <div><label>ราคาทุนอะไหล่ (บาท)</label><input type="number" name="cost_price" value="0" min="0" step="0.01"></div>
+      <div><label>ค่าบริการเปลี่ยนอุปกรณ์ (บาท)</label><input type="number" name="labor_fee" value="0" min="0" step="0.01"></div>
+      <div><label>จุดสั่งซื้อ (Reorder level)</label><input type="number" name="reorder_level" value="0" min="0"></div>
+      <div><label>รูปอะไหล่ (1 รูป)</label><input type="file" name="image" accept="image/*"></div>
+    </div>
+    <button class="btn" type="submit">เพิ่มอะไหล่</button>
+  </form>
+</div>
+
+<div class="card">
+  <table>
+    <tr>
+      <th>รูป</th><th>SKU</th><th>ชื่ออะไหล่</th><th>รุ่นที่ใช้ร่วมกันได้</th><th>คงเหลือ</th>
+      <th>ราคาทุน</th><th>ค่าบริการเปลี่ยน</th><th>จุดสั่งซื้อ</th><th>เติมสต็อก</th><th></th>
+    </tr>
+    {% for p in parts %}
+    <tr {% if p.stock_quantity <= p.reorder_level %}style="background:#fdecea;"{% endif %}>
+      <td>
+        {% if p.image_filename %}
+        <a href="/part-image/{{ p.image_filename }}" target="_blank">
+          <img src="/part-image/{{ p.image_filename }}" alt="{{ p.part_name }}" style="width:56px; height:56px; object-fit:cover; border-radius:6px; border:1px solid #ddd; display:block;">
+        </a>
+        {% else %}
+        <span class="hint">— ไม่มีรูป —</span>
+        {% endif %}
+        <form method="post" action="/admin/inventory/{{ p.part_sku }}/image" enctype="multipart/form-data" style="margin-top:4px;">
+          <input type="file" name="image" accept="image/*" style="width:120px; font-size:11px; margin:0;">
+          <button class="btn small secondary" type="submit" style="margin-top:2px;">{{ 'เปลี่ยนรูป' if p.image_filename else '+ เพิ่มรูป' }}</button>
+        </form>
+      </td>
+      <td>{{ p.part_sku }}</td>
+      <td>{{ p.part_name }}</td>
+      <td>{{ p.compatible_models }}</td>
+      <td>{{ p.stock_quantity }} {% if p.stock_quantity <= p.reorder_level %}<span class="warning">ต่ำ!</span>{% endif %}</td>
+      <td>{{ "%.0f"|format(p.cost_price) }} บาท</td>
+      <td>{{ "%.0f"|format(p.labor_fee) }} บาท</td>
+      <td>{{ p.reorder_level }}</td>
+      <td>
+        <form method="post" action="/admin/inventory/{{ p.part_sku }}/restock" style="display:flex; gap:4px;">
+          <input type="number" name="qty" value="10" min="1" style="width:70px; margin:0;">
+          <button class="btn small" type="submit">+ เติม</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/admin/inventory/{{ p.part_sku }}/delete"
+              onsubmit="return confirm('ลบอะไหล่ {{ p.part_name }} ออกจากระบบ?');">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="hint">ลบไม่ได้ถ้าอะไหล่นั้นเคยถูกเบิกใช้ในงานซ่อมแล้ว (ป้องกันประวัติการซ่อม/ใบแจ้งหนี้เก่าพัง)</p>
+</div>
+{% endblock %}

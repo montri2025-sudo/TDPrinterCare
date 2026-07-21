@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}อนุมัติเบิกอะไหล่{% endblock %}
+{% block content %}
+<h1>✅ รออนุมัติเบิกอะไหล่ราคาสูง</h1>
+<div class="card">
+  {% if not pending %}
+  <p>ไม่มีรายการรออนุมัติ</p>
+  {% else %}
+  <table>
+    <tr><th>ตั๋ว</th><th>อะไหล่</th><th>จำนวน</th><th>มูลค่ารวม</th><th>หมายเหตุช่าง</th><th></th></tr>
+    {% for l in pending %}
+    <tr>
+      <td>#{{ l.ticket_id }} ({{ l.device_sn }})</td>
+      <td>{{ l.part_name }}</td>
+      <td>{{ l.quantity_used }}</td>
+      <td>{{ "%.0f"|format(l.cost_price * l.quantity_used) }} บาท</td>
+      <td>{{ l.tech_notes or '-' }}</td>
+      <td style="display:flex; gap:6px;">
+        <form method="post" action="/manager/approvals/{{ l.log_id }}/approve">
+          <button class="btn small" type="submit">อนุมัติ</button>
+        </form>
+        <form method="post" action="/manager/approvals/{{ l.log_id }}/reject">
+          <button class="btn small danger" type="submit">ปฏิเสธ</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

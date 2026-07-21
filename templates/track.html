@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}เช็กสถานะงานซ่อม{% endblock %}
+{% block content %}
+<h1>🔍 เช็กสถานะงานซ่อม</h1>
+<div class="card">
+  <form method="get" action="/track">
+    <label>Serial Number ของเครื่องพิมพ์</label>
+    <input type="text" name="sn" value="{{ sn or '' }}" placeholder="เช่น AC-KOBRA2-0001" required>
+    <button class="btn" type="submit">ค้นหา</button>
+  </form>
+</div>
+
+{% if sn and not device %}
+  <div class="error-box">ไม่พบเครื่องพิมพ์ที่มี Serial Number นี้ในระบบ</div>
+{% endif %}
+
+{% if device %}
+  <div class="card">
+    <h2>{{ device.model }} <span class="tag">{{ device.device_sn }}</span></h2>
+    {% if not tickets %}
+      <p>ยังไม่มีประวัติการแจ้งซ่อมสำหรับเครื่องนี้</p>
+    {% endif %}
+    {% for t in tickets %}
+      <div class="card" style="background:#fafbfe;">
+        <b>ตั๋ว #{{ t.ticket_id }}</b> — {{ t.issue_category }}
+        <span class="badge {{ t.status|replace(' ','-')|replace('/','-') }}">{{ t.status }}</span>
+        <ul class="timeline">
+          {% for s in statuses %}
+            {% set idx = status_index[t.status] %}
+            <li class="{{ 'done' if loop.index0 < idx else ('current' if loop.index0 == idx else '') }}">
+              {{ s }}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

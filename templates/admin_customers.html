@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}ลูกค้า/เครื่อง{% endblock %}
+{% block content %}
+<h1>👥 ลูกค้าและเครื่องพิมพ์</h1>
+
+<div class="grid">
+  <div class="card">
+    <h2>+ เพิ่มลูกค้าใหม่</h2>
+    <form method="post" action="/admin/customers/new">
+      <label>ชื่อ</label><input type="text" name="name" required>
+      <label>เบอร์โทร</label><input type="text" name="phone">
+      <label>อีเมล</label><input type="text" name="email">
+      <label>Line ID</label><input type="text" name="line_id">
+      <label>ที่อยู่</label><textarea name="address" rows="2"></textarea>
+      <button class="btn" type="submit">บันทึกลูกค้า</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>+ ลงทะเบียนเครื่องพิมพ์</h2>
+    <form method="post" action="/admin/devices/new">
+      <label>Serial Number</label><input type="text" name="device_sn" required>
+      <label>ลูกค้า</label>
+      <select name="customer_id" required>
+        {% for c in customers %}
+        <option value="{{ c.customer_id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <label>รุ่น</label><input type="text" name="model" placeholder="เช่น Kobra 2" required>
+      <label>ประเภท</label>
+      <select name="type"><option>FDM</option><option>Resin</option></select>
+      <label>วันที่ซื้อ</label><input type="date" name="purchase_date">
+      <label>วันหมดประกัน</label><input type="date" name="warranty_end_date">
+      <button class="btn" type="submit">บันทึกเครื่อง</button>
+    </form>
+  </div>
+</div>
+
+<h2>รายชื่อลูกค้า</h2>
+<div class="card">
+  <table>
+    <tr><th>ชื่อ</th><th>เบอร์โทร</th><th>อีเมล</th><th>Line ID</th></tr>
+    {% for c in customers %}
+    <tr><td>{{ c.name }}</td><td>{{ c.phone }}</td><td>{{ c.email }}</td><td>{{ c.line_id }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<h2>เครื่องพิมพ์ทั้งหมด / สถานะประกัน</h2>
+<div class="card">
+  <table>
+    <tr><th>SN</th><th>รุ่น</th><th>ประเภท</th><th>หมดประกัน</th><th>สถานะประกัน</th></tr>
+    {% for d in devices %}
+    {% set left = days_left(d.warranty_end_date) %}
+    <tr>
+      <td>{{ d.device_sn }}</td><td>{{ d.model }}</td><td>{{ d.type }}</td>
+      <td>{{ d.warranty_end_date or '-' }}</td>
+      <td>
+        {% if left is none %}-
+        {% elif left >= 0 %}<span class="ok">ในประกัน ({{ left }} วัน)</span>
+        {% else %}<span class="warning">หมดประกันแล้ว</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

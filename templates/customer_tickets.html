@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}ตั๋วซ่อมของฉัน{% endblock %}
+{% block content %}
+<h1>ตั๋วซ่อมของฉัน</h1>
+<a href="/customer/new" class="btn">+ แจ้งซ่อมใหม่</a>
+<div class="card" style="margin-top:16px;">
+  <table>
+    <tr><th>#</th><th>เครื่อง</th><th>ปัญหา</th><th>สาขา</th><th>สถานะ</th><th>วันที่แจ้ง</th><th></th></tr>
+    {% for t in tickets %}
+    <tr>
+      <td>{{ t.ticket_id }}</td>
+      <td>{{ t.model }}</td>
+      <td>{{ t.issue_category }}</td>
+      <td>{{ t.center_name or '-' }}</td>
+      <td><span class="badge {{ t.status|replace(' ','-')|replace('/','-') }}">{{ t.status }}</span></td>
+      <td>{{ t.created_at }}</td>
+      <td><a href="/customer/ticket/{{ t.ticket_id }}" class="btn small">ดูรายละเอียด</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7">ยังไม่มีตั๋วแจ้งซ่อม</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

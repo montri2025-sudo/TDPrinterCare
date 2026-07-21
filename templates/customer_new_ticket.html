@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}แจ้งซ่อมใหม่{% endblock %}
+{% block extra_head %}
+{% if centers_with_geo %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>แจ้งซ่อมใหม่</h1>
+<div class="card" style="max-width:700px;">
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+  {% if not devices %}
+    <p>ยังไม่มีเครื่องพิมพ์ในบัญชีของคุณ กรุณาติดต่อแอดมินเพื่อลงทะเบียนเครื่อง</p>
+  {% else %}
+  <form method="post" action="/customer/new" enctype="multipart/form-data" onsubmit="return validateBranch()">
+
+    {% if centers %}
+    <label>เลือกสาขาที่ต้องการเข้ารับบริการ</label>
+    {% if centers_with_geo %}
+    <div id="branch-map" style="height:320px; border-radius:8px; margin-bottom:12px; border:1px solid #ddd;"></div>
+    {% endif %}
+    <div id="branch-list" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+      {% for c in centers %}
+      <div class="center-card" data-center-id="{{ c.center_id }}"
+           onclick="selectCenter({{ c.center_id }}, {{ c.name|tojson }})"
+           style="border:2px solid #ddd; border-radius:8px; padding:10px 14px; cursor:pointer; min-width:180px; flex:1; background:#fff;">
+        <b>{{ c.name }}</b>
+        <div style="font-size:12px; color:#666;">{{ c.address or '-' }}</div>
+        {% if c.phone %}<div style="font-size:12px; color:#666;">{{ c.phone }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p id="selected-center-label" class="hint">ยังไม่ได้เลือกสาขา — คลิกหมุดบนแผนที่หรือการ์ดสาขาด้านบน</p>
+    <input type="hidden" name="center_id" id="center_id_input" value="">
+    {% endif %}
+
+    <label>เลือกเครื่องพิมพ์</label>
+    <select name="device_sn" required>
+      {% for d in devices %}
+      <option value="{{ d.device_sn }}">{{ d.model }} ({{ d.device_sn }})</option>
+      {% endfor %}
+    </select>
+    <label>ประเภทปัญหา</label>
+    <select name="issue_category">
+      <option>พิมพ์ไม่ติด</option>
+      <option>เปิดไม่ติด</option>
+      <option>เสียงดัง</option>
+      <option>จอ/หน้าจอเสีย</option>
+      <option>เฟิร์มแวร์/ซอฟต์แวร์</option>
+      <option>อื่นๆ</option>
+    </select>
+    <label>รายละเอียดปัญหา</label>
+    <textarea name="description" rows="4" placeholder="อธิบายอาการที่พบ"></textarea>
+    <label>รูปภาพประกอบ (สูงสุด {{ max_images }} รูป)</label>
+    <input type="file" name="images" accept="image/*" multiple>
+    <label>วิดีโอประกอบ (สูงสุด 1 คลิป ไม่เกิน {{ max_video_mb }} MB)</label>
+    <input type="file" name="video" accept="video/*">
+    <button class="btn" type="submit">ส่งเรื่องแจ้งซ่อม</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if centers_with_geo %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+{% endif %}
+<script>
+  function validateBranch() {
+    {% if centers %}
+    var v = document.getElementById('center_id_input').value;
+    if (!v) {
+      alert('กรุณาเลือกสาขาที่ต้องการเข้ารับบริการ');
+      return false;
+    }
+    {% endif %}
+    return true;
+  }
+
+  function selectCenter(id, name) {
+    document.getElementById('center_id_input').value = id;
+    document.getElementById('selected-center-label').textContent = 'เลือกแล้ว: ' + name;
+    document.getElementById('selected-center-label').className = 'ok';
+    document.querySelectorAll('.center-card').forEach(function (el) {
+      var picked = String(el.dataset.centerId) === String(id);
+      el.style.borderColor = picked ? '#2e5395' : '#ddd';
+      el.style.background = picked ? '#eef3fb' : '#fff';
+    });
+  }
+
+  {% if centers_with_geo %}
+  var branchMap = L.map('branch-map');
+  var branchBounds = [];
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(branchMap);
+  {% for c in centers_with_geo %}
+  (function () {
+    var marker = L.marker([{{ c.latitude }}, {{ c.longitude }}]).addTo(branchMap);
+    marker.bindPopup({{ (c.name ~ '<br>' ~ (c.address or ''))|tojson }});
+    marker.on('click', function () { selectCenter({{ c.center_id }}, {{ c.name|tojson }}); });
+    branchBounds.push([{{ c.latitude }}, {{ c.longitude }}]);
+  })();
+  {% endfor %}
+  if (branchBounds.length === 1) { branchMap.setView(branchBounds[0], 14); }
+  else { branchMap.fitBounds(branchBounds, { padding: [30, 30] }); }
+  {% endif %}
+</script>
+{% endblock %}

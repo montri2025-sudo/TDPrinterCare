@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}ตั๋ว #{{ t.ticket_id }}{% endblock %}
+{% block content %}
+<a href="/tech/tasks">← กลับไปหน้างานของฉัน</a>
+<h1>ตั๋ว #{{ t.ticket_id }} — {{ t.model }}</h1>
+<div class="card">
+  <p><b>ลูกค้า:</b> {{ t.customer_name }}</p>
+  <p><b>สาขาที่เข้ารับบริการ:</b> {{ t.center_name or '-' }}</p>
+  <p><b>ปัญหา:</b> {{ t.issue_category }}</p>
+  <p><b>รายละเอียด:</b> {{ t.description or '-' }}</p>
+  <p><b>สถานะปัจจุบัน:</b> <span class="badge {{ t.status|replace(' ','-')|replace('/','-') }}">{{ t.status }}</span></p>
+
+  {% if media %}
+  <h2>รูปภาพ/วิดีโอจากลูกค้า</h2>
+  <div class="media-grid">
+    {% for md in media %}
+      {% if md.media_type == 'image' %}
+      <a href="/media/{{ md.ticket_id }}/{{ md.stored_name }}" target="_blank">
+        <img src="/media/{{ md.ticket_id }}/{{ md.stored_name }}" alt="{{ md.filename }}">
+      </a>
+      {% else %}
+      <video controls><source src="/media/{{ md.ticket_id }}/{{ md.stored_name }}"></video>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>อัปเดตสถานะ</h2>
+  <form method="post" action="/tech/ticket/{{ t.ticket_id }}/status">
+    <select name="status">
+      {% for st in statuses %}
+      <option value="{{ st }}" {% if st == t.status %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">อัปเดตสถานะ</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>บันทึกผลการซ่อม / เบิกอะไหล่</h2>
+  <form method="post" action="/tech/ticket/{{ t.ticket_id }}/log">
+    <label>การดำเนินการ</label>
+    <input type="text" name="action_taken" placeholder="เช่น เปลี่ยนหัวฉีด, อัปเดตเฟิร์มแวร์">
+    <label>ค้นหา/เลือกอะไหล่ที่ใช้ (ถ้ามี)</label>
+    <select name="part_sku_used">
+      <option value="">— ไม่ได้ใช้อะไหล่ —</option>
+      {% for p in parts %}
+      <option value="{{ p.part_sku }}">{{ p.part_name }} ({{ p.part_sku }}) — คงเหลือ {{ p.stock_quantity }} — ค่าอะไหล่ {{ "%.0f"|format(p.cost_price) }} บาท (ค่าบริการมาตรฐาน {{ "%.0f"|format(p.labor_fee) }} บาท)</option>
+      {% endfor %}
+    </select>
+    <label>จำนวนที่ใช้</label>
+    <input type="number" name="quantity_used" value="0" min="0">
+    <label>ค่าบริการเปลี่ยนอุปกรณ์ที่เรียกเก็บจริง (บาท)</label>
+    <input type="number" name="labor_fee" value="0" min="0" step="0.01">
+    <label>หมายเหตุช่าง</label>
+    <textarea name="tech_notes" rows="3"></textarea>
+    <button class="btn" type="submit">บันทึก</button>
+  </form>
+  <p class="hint">ค่าบริการอ้างอิงมาตรฐานแสดงในตัวเลือกอะไหล่ด้านบน แต่ช่างปรับตัวเลขที่เรียกเก็บจริงในช่องนี้ได้เสมอ · หากมูลค่าอะไหล่ที่เบิก (ราคา × จำนวน) เกินเกณฑ์ที่กำหนด ระบบจะส่งคำขอไปรออนุมัติจากผู้จัดการก่อนตัดสต็อกอัตโนมัติ</p>
+</div>
+
+{% if logs %}
+<div class="card">
+  <h2>ประวัติที่บันทึกไว้</h2>
+  <table>
+    <tr><th>วันที่</th><th>การดำเนินการ</th><th>อะไหล่</th><th>จำนวน</th><th>ค่าบริการ</th><th>สถานะอนุมัติ</th></tr>
+    {% for l in logs %}
+    <tr>
+      <td>{{ l.created_at }}</td><td>{{ l.action_taken }}</td>
+      <td>{{ l.part_sku_used or '-' }}</td><td>{{ l.quantity_used }}</td>
+      <td>{{ "%.0f"|format(l.labor_fee) }} บาท</td>
+      <td>{{ l.approval_status }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>ใบเสนอราคา</h2>
+  {% if quotes %}
+  {% for q in quotes %}
+  <div class="card" style="background:#fafbfe;">
+    <b>ใบเสนอราคา #{{ q.quote_id }}</b> — {{ q.created_at }}
+    <table>
+      <tr><th>รายการ</th><th>จำนวน</th><th>ราคา/หน่วย</th><th>รวม</th></tr>
+      {% for it in q.line_items %}
+      <tr><td>{{ it.description }}</td><td>{{ it.quantity }}</td><td>{{ "%.0f"|format(it.unit_price) }}</td><td>{{ "%.0f"|format(it.quantity * it.unit_price) }}</td></tr>
+      {% endfor %}
+    </table>
+    <p style="text-align:right;"><b>รวมทั้งสิ้น: {{ "%.0f"|format(q.total) }} บาท</b></p>
+    {% if q.notes %}<p class="hint">หมายเหตุ: {{ q.notes }}</p>{% endif %}
+    <p style="text-align:right;"><a href="/quote/{{ q.quote_id }}/print" target="_blank" class="btn small secondary">🖨️ พิมพ์ / PDF</a></p>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="hint">ยังไม่มีใบเสนอราคาสำหรับตั๋วนี้</p>
+  {% endif %}
+  <a href="/tech/ticket/{{ t.ticket_id }}/quote/new" class="btn">+ ออกใบเสนอราคาใหม่</a>
+</div>
+
+{% if t.status == 'Resolved/Closed' %}
+<div class="card">
+  <h2>🧾 ใบแจ้งหนี้ลูกค้า</h2>
+  {% if invoice_items %}
+  <table>
+    <tr><th>วันที่</th><th>รายการซ่อม</th><th>อะไหล่</th><th>ค่าอะไหล่</th><th>ค่าบริการ</th><th>รวม</th></tr>
+    {% for it in invoice_items %}
+    <tr>
+      <td>{{ it.created_at }}</td><td>{{ it.action }}</td><td>{{ it.part_name or '-' }}</td>
+      <td>{{ "%.0f"|format(it.part_cost) }}</td><td>{{ "%.0f"|format(it.labor_fee) }}</td>
+      <td>{{ "%.0f"|format(it.line_total) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p style="text-align:right; font-size:18px;"><b>ยอดรวมสุทธิ: {{ "%.0f"|format(invoice_total) }} บาท</b></p>
+  <p style="text-align:right;"><a href="/ticket/{{ t.ticket_id }}/invoice/print" target="_blank" class="btn small secondary">🖨️ ดาวน์โหลด PDF</a></p>
+  {% else %}
+  <p class="hint">ไม่มีค่าใช้จ่ายในการซ่อมนี้</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

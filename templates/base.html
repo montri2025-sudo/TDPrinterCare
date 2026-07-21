@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}TDPrinter Care{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+<div class="topnav">
+  <div style="display:flex;align-items:center;">
+    <span class="brand">🖨️ TDPrinter Care</span>
+    {% if user %}
+      {% if user.role == 'admin' %}
+        <a href="/admin/dashboard">Dashboard</a>
+        <a href="/admin/board">Kanban Board</a>
+        <a href="/admin/customers">ลูกค้า/เครื่อง</a>
+        <a href="/admin/inventory">คลังอะไหล่</a>
+        <a href="/admin/users">ผู้ใช้งาน</a>
+        <a href="/admin/centers">ศูนย์บริการ</a>
+      {% elif user.role == 'manager' %}
+        <a href="/manager/dashboard">Dashboard</a>
+        <a href="/admin/board">Kanban Board</a>
+        <a href="/manager/approvals">อนุมัติเบิกอะไหล่</a>
+        <a href="/admin/inventory">คลังอะไหล่</a>
+        <a href="/manager/csat">รายงาน CSAT</a>
+      {% elif user.role == 'technician' %}
+        <a href="/tech/tasks">งานของฉัน</a>
+      {% elif user.role == 'customer' %}
+        <a href="/customer/tickets">ตั๋วซ่อมของฉัน</a>
+        <a href="/customer/new">แจ้งซ่อมใหม่</a>
+      {% endif %}
+      <a href="/track">🔍 เช็กสถานะ (Public)</a>
+    {% else %}
+      <a href="/track">🔍 เช็กสถานะ</a>
+    {% endif %}
+  </div>
+  <div class="right">
+    {% if user %}
+      <span style="margin-right:12px;">{{ user.name }} <span class="tag">{{ user.role }}</span></span>
+      <a href="/logout" class="btn small secondary">ออกจากระบบ</a>
+    {% else %}
+      <a href="/login" class="btn small">เข้าสู่ระบบ</a>
+    {% endif %}
+  </div>
+</div>
+<div class="container">
+{% block content %}{% endblock %}
+</div>
+</body>
+</html>

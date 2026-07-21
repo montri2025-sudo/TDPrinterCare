@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}รายงาน CSAT{% endblock %}
+{% block content %}
+<h1>⭐ รายงานความพึงพอใจลูกค้า (CSAT)</h1>
+<div class="card stat">
+  <div class="num">{{ avg if avg is not none else '-' }}</div>
+  <div class="label">คะแนนเฉลี่ย (จาก 5)</div>
+</div>
+<div class="card">
+  <table>
+    <tr><th>ตั๋ว</th><th>ลูกค้า</th><th>เครื่อง</th><th>คะแนน</th><th>ความคิดเห็น</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>#{{ r.ticket_id }}</td><td>{{ r.customer_name }}</td><td>{{ r.model }}</td>
+      <td>{{ r.csat_score }}/5</td><td>{{ r.csat_comment or '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">ยังไม่มีการประเมิน</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

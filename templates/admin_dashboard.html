@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block extra_head %}
+{% if centers_with_geo %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>📊 Dashboard สรุปภาพรวม</h1>
+
+<div class="grid">
+  {% for s in statuses %}
+  <div class="card stat">
+    <div class="num">{{ counts.get(s, 0) }}</div>
+    <div class="label">{{ s }}</div>
+  </div>
+  {% endfor %}
+  <div class="card stat">
+    <div class="num">{{ total }}</div>
+    <div class="label">ตั๋วทั้งหมด</div>
+  </div>
+</div>
+
+<h2>ภาระงานของช่าง (ตั๋วที่ยังไม่ปิด)</h2>
+<div class="card">
+  <table>
+    <tr><th>ช่าง</th><th>งานค้าง</th></tr>
+    {% for w in workload %}
+    <tr>
+      <td>{{ w.name }}</td>
+      <td>{{ w.open_tickets }} {% if w.open_tickets >= 4 %}<span class="warning">(งานล้น)</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<h2>⚠️ อะไหล่ใกล้หมดสต็อก</h2>
+<div class="card">
+  {% if low_stock %}
+  <table>
+    <tr><th>SKU</th><th>ชื่ออะไหล่</th><th>คงเหลือ</th><th>จุดสั่งซื้อ</th></tr>
+    {% for p in low_stock %}
+    <tr>
+      <td>{{ p.part_sku }}</td><td>{{ p.part_name }}</td>
+      <td class="warning">{{ p.stock_quantity }}</td><td>{{ p.reorder_level }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="ok">สต็อกอะไหล่ปกติทุกรายการ</p>
+  {% endif %}
+</div>
+
+<h2>📍 แผนที่ศูนย์บริการทั้งหมด</h2>
+<div class="card">
+  {% if centers_with_geo %}
+  <div id="centers-map" style="height:400px; border-radius:8px;"></div>
+  {% elif centers %}
+  <p class="hint">มีศูนย์บริการในระบบ {{ centers|length }} แห่ง แต่ยังไม่ได้ระบุพิกัด (ละติจูด/ลองจิจูด) เลยยังไม่ขึ้นบนแผนที่</p>
+  {% else %}
+  <p class="hint">ยังไม่มีศูนย์บริการในระบบ</p>
+  {% endif %}
+  <p style="margin-top:10px;"><a href="/admin/centers" class="btn small secondary">จัดการศูนย์บริการ</a></p>
+</div>
+
+{% if centers_with_geo %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  var map = L.map('centers-map');
+  var bounds = [];
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  {% for c in centers_with_geo %}
+  (function () {
+    var marker = L.marker([{{ c.latitude }}, {{ c.longitude }}]).addTo(map);
+    marker.bindPopup({{ (c.name ~ '<br>' ~ (c.address or '') ~ '<br>' ~ (c.phone or ''))|tojson }});
+    bounds.push([{{ c.latitude }}, {{ c.longitude }}]);
+  })();
+  {% endfor %}
+  if (bounds.length === 1) { map.setView(bounds[0], 14); }
+  else { map.fitBounds(bounds, { padding: [30, 30] }); }
+</script>
+{% endif %}
+{% endblock %}

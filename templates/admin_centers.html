@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}ศูนย์บริการ{% endblock %}
+{% block content %}
+<h1>📍 ศูนย์บริการ</h1>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>+ เพิ่มศูนย์บริการใหม่</h2>
+  <form method="post" action="/admin/centers/new">
+    <div class="grid">
+      <div><label>ชื่อศูนย์บริการ</label><input type="text" name="name" placeholder="เช่น TDPrinter Care สาขาสุขุมวิท" required></div>
+      <div><label>เบอร์โทร</label><input type="text" name="phone"></div>
+      <div style="grid-column: 1 / -1;"><label>ที่อยู่</label><input type="text" name="address"></div>
+      <div><label>ละติจูด (Latitude)</label><input type="text" name="latitude" placeholder="เช่น 13.7440"></div>
+      <div><label>ลองจิจูด (Longitude)</label><input type="text" name="longitude" placeholder="เช่น 100.5622"></div>
+    </div>
+    <p class="hint">หาพิกัดได้จาก Google Maps: คลิกขวาที่ตำแหน่งร้าน แล้วเลือกตัวเลขพิกัดที่ขึ้นมา (คั่นด้วยจุลภาค) — ถ้าไม่ใส่พิกัด ศูนย์นี้จะยังไม่ขึ้นบนแผนที่หน้า Dashboard</p>
+    <button class="btn" type="submit">เพิ่มศูนย์บริการ</button>
+  </form>
+</div>
+
+<div class="card">
+  <table>
+    <tr><th>ชื่อศูนย์บริการ</th><th>ที่อยู่</th><th>เบอร์โทร</th><th>พิกัด</th><th></th></tr>
+    {% for c in centers %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td>{{ c.address or '-' }}</td>
+      <td>{{ c.phone or '-' }}</td>
+      <td>
+        {% if c.latitude and c.longitude %}
+          {{ c.latitude }}, {{ c.longitude }}
+        {% else %}
+          <span class="hint">— ยังไม่ระบุพิกัด —</span>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="/admin/centers/{{ c.center_id }}/delete"
+              onsubmit="return confirm('ลบศูนย์บริการ {{ c.name }}?');">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">ยังไม่มีศูนย์บริการในระบบ</td></tr>
+    {% endfor %}
+  </table>
+  <p class="hint">ลบไม่ได้ถ้ามีผู้ใช้งาน (แอดมิน/ช่าง/ผู้จัดการ) สังกัดศูนย์นี้อยู่ — ย้ายผู้ใช้งานไปศูนย์อื่นก่อนที่หน้า "ผู้ใช้งาน"</p>
+</div>
+{% endblock %}
