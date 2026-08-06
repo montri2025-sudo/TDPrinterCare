@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.db
+*.db-journal
+uploads/
+mysql-data/
+.git/
+.gitignore
+.DS_Store
+*.zip

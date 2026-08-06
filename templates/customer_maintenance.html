@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}บำรุงรักษาเครื่องของฉัน{% endblock %}
+{% block content %}
+<h1>🔧 บำรุงรักษาเครื่องของฉัน</h1>
+<p class="hint" style="margin-top:-6px;">ภาพรวมสถานะเครื่องพิมพ์ทั้งหมดของคุณ — เครื่องไหนพร้อมใช้งาน เครื่องไหนถึงรอบต้องบำรุงรักษา และเครื่องไหนกำลังซ่อมอยู่</p>
+
+<div class="grid">
+  <div class="card stat">
+    <div class="stat-icon">✅</div>
+    <div class="num">{{ summary.get('ready', 0) }}</div>
+    <div class="label">พร้อมใช้งาน</div>
+  </div>
+  <div class="card stat{% if summary.get('maintenance_due', 0) > 0 %} stat-warning{% endif %}">
+    <div class="stat-icon">🛠️</div>
+    <div class="num">{{ summary.get('maintenance_due', 0) }}</div>
+    <div class="label">ถึงรอบบำรุงรักษา</div>
+  </div>
+  <div class="card stat{% if summary.get('in_repair', 0) > 0 %} stat-danger{% endif %}">
+    <div class="stat-icon">🔩</div>
+    <div class="num">{{ summary.get('in_repair', 0) }}</div>
+    <div class="label">กำลังซ่อม</div>
+  </div>
+</div>
+
+{% if not devices %}
+<div class="card" style="margin-top:16px;">
+  <p class="hint">ยังไม่มีเครื่องพิมพ์ในบัญชีของคุณ กรุณาติดต่อแอดมินเพื่อลงทะเบียนเครื่อง</p>
+</div>
+{% else %}
+<div class="grid" style="margin-top:16px; grid-template-columns: repeat(auto-fit, minmax(320px,1fr));">
+  {% for d in devices %}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+      <div>
+        <b style="font-size:16px;">{{ d.model }}</b>
+        <div class="hint" style="margin-top:0;">{{ d.device_sn }} · {{ device_type_labels.get(d.type, d.type) }}</div>
+      </div>
+      {% if d.overview.status == 'ready' %}
+      <span class="badge" style="background:var(--green-bg); color:var(--green-fg);">✅ พร้อมใช้งาน</span>
+      {% elif d.overview.status == 'maintenance_due' %}
+      <span class="badge" style="background:var(--amber-bg); color:var(--amber-fg);">🛠️ ถึงรอบบำรุงรักษา</span>
+      {% else %}
+      <span class="badge" style="background:var(--red-bg); color:var(--red-fg);">🔩 กำลังซ่อม</span>
+      {% endif %}
+    </div>
+    <p style="margin:4px 0; font-size:13px;">⏱️ ชั่วโมงใช้งานสะสม: <b>{{ "%.0f"|format(d.total_usage_hours) }} ชม.</b></p>
+
+    {% if d.overview.status == 'in_repair' %}
+    <p class="hint">เครื่องนี้มีตั๋วซ่อมค้างอยู่ <a href="/customer/ticket/{{ d.overview.open_ticket_id }}">ดูรายละเอียดตั๋ว #{{ d.overview.open_ticket_id }} →</a></p>
+    {% endif %}
+
+    {% if d.overview.due_tasks %}
+    <p style="margin:10px 0 4px; font-weight:700; font-size:13px;">งานที่ถึงรอบบำรุงรักษา:</p>
+    <ul style="margin:0 0 8px; padding-left:18px; font-size:13px;">
+      {% for t in d.overview.due_tasks %}
+      <li><b>{{ t.task_name }}</b> — <span class="warning">{{ t.overdue_label }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
+      <a href="/device/{{ d.device_sn|urlencode }}/print/new" class="btn small">🖨️ เริ่มงานพิมพ์</a>
+      <a href="/device/{{ d.device_sn|urlencode }}/maintenance/log" class="btn small secondary">🛠️ บันทึกบำรุงรักษา</a>
+      <a href="/device/{{ d.device_sn|urlencode }}/history" class="btn small secondary">📜 ประวัติ</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

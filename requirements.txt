@@ -1,0 +1,2 @@
+Jinja2>=3.0
+PyMySQL>=1.1

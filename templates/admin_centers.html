@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}ศูนย์บริการ{% endblock %}
+{% block content %}
+<h1>📍 ศูนย์บริการ</h1>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>+ เพิ่มศูนย์บริการใหม่</h2>
+  <form method="post" action="/admin/centers/new">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <div><label>ชื่อศูนย์บริการ</label><input type="text" name="name" placeholder="เช่น TD ServicePro สาขาสุขุมวิท" required></div>
+      <div><label>เบอร์โทร</label><input type="text" name="phone"></div>
+      <div style="grid-column: 1 / -1;"><label>ที่อยู่</label><input type="text" name="address"></div>
+      <div><label>ละติจูด (Latitude)</label><input type="text" name="latitude" placeholder="เช่น 13.7440"></div>
+      <div><label>ลองจิจูด (Longitude)</label><input type="text" name="longitude" placeholder="เช่น 100.5622"></div>
+      <div style="grid-column: 1 / -1;">
+        <label>ประเภทเครื่องพิมพ์ที่รับซ่อม</label>
+        <label style="font-weight:normal; display:inline-block; margin-right:16px;">
+          <input type="checkbox" name="supports_fdm" value="1" checked style="width:auto;"> FDM
+        </label>
+        <label style="font-weight:normal; display:inline-block;">
+          <input type="checkbox" name="supports_resin" value="1" checked style="width:auto;"> Resin
+        </label>
+        <p class="hint" style="margin-top:2px;">ถ้าศูนย์นี้ไม่รับซ่อมเลย (ขายสินค้าอย่างเดียว) ให้เอาติ๊กออกทั้ง 2 ช่อง แล้วติ๊ก "จำหน่ายสินค้า" ด้านล่างแทน</p>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label style="font-weight:normal; display:inline-block;">
+          <input type="checkbox" name="sells_products" value="1" style="width:auto;"> สาขานี้จำหน่ายสินค้า (ขายหน้าร้าน) ได้ด้วย
+        </label>
+      </div>
+    </div>
+    <p class="hint">หาพิกัดได้จาก Google Maps: คลิกขวาที่ตำแหน่งร้าน แล้วเลือกตัวเลขพิกัดที่ขึ้นมา (คั่นด้วยจุลภาค) — ถ้าไม่ใส่พิกัด ศูนย์นี้จะยังไม่ขึ้นบนแผนที่หน้า Dashboard — ต้องเลือกอย่างน้อย 1 อย่าง: รับซ่อม FDM/Resin หรือ เปิดขายสินค้า</p>
+    <button class="btn" type="submit">เพิ่มศูนย์บริการ</button>
+  </form>
+</div>
+
+<div class="card">
+  <table class="sortable">
+    <tr><th>ชื่อศูนย์บริการ</th><th>ที่อยู่</th><th>เบอร์โทร</th><th>พิกัด</th><th>ประเภทที่รับซ่อม</th><th>จำหน่ายสินค้า</th><th></th></tr>
+    {% for c in centers %}
+    <tr data-pair-id="center-edit-row-{{ c.center_id }}">
+      <td>{{ c.name }}</td>
+      <td>{{ c.address or '-' }}</td>
+      <td>{{ c.phone or '-' }}</td>
+      <td>
+        {% if c.latitude and c.longitude %}
+          {{ c.latitude }}, {{ c.longitude }}
+        {% else %}
+          <span class="hint">— ยังไม่ระบุพิกัด —</span>
+        {% endif %}
+      </td>
+      <td>
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+          <span style="width:12px; height:12px; border-radius:50%; background:{{ c.marker_color }}; display:inline-block; border:1px solid rgba(0,0,0,.15);"></span>
+          {{ c.type_label }}
+        </span>
+      </td>
+      <td>
+        {% if c.sells_products %}<span class="ok">✓ ขายได้</span>{% else %}<span class="hint">— ไม่ขาย —</span>{% endif %}
+      </td>
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" type="button" onclick="toggleCenterEdit({{ c.center_id }})">แก้ไข</button>
+        <form method="post" action="/admin/centers/{{ c.center_id }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบศูนย์บริการ {{ c.name }}?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="center-edit-row-{{ c.center_id }}" style="display:none; background:#f7f9fc;">
+      <td colspan="7">
+        <form method="post" action="/admin/centers/{{ c.center_id }}/edit">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="grid">
+            <div><label>ชื่อศูนย์บริการ</label><input type="text" name="name" value="{{ c.name }}" required></div>
+            <div><label>เบอร์โทร</label><input type="text" name="phone" value="{{ c.phone or '' }}"></div>
+            <div style="grid-column: 1 / -1;"><label>ที่อยู่</label><input type="text" name="address" value="{{ c.address or '' }}"></div>
+            <div><label>ละติจูด (Latitude)</label><input type="text" name="latitude" value="{{ c.latitude if c.latitude is not none else '' }}"></div>
+            <div><label>ลองจิจูด (Longitude)</label><input type="text" name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}"></div>
+            <div style="grid-column: 1 / -1;">
+              <label>ประเภทเครื่องพิมพ์ที่รับซ่อม</label>
+              <label style="font-weight:normal; display:inline-block; margin-right:16px;">
+                <input type="checkbox" name="supports_fdm" value="1" {% if c.supports_fdm %}checked{% endif %} style="width:auto;"> FDM
+              </label>
+              <label style="font-weight:normal; display:inline-block;">
+                <input type="checkbox" name="supports_resin" value="1" {% if c.supports_resin %}checked{% endif %} style="width:auto;"> Resin
+              </label>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label style="font-weight:normal; display:inline-block;">
+                <input type="checkbox" name="sells_products" value="1" {% if c.sells_products %}checked{% endif %} style="width:auto;"> สาขานี้จำหน่ายสินค้า (ขายหน้าร้าน) ได้ด้วย
+              </label>
+            </div>
+          </div>
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleCenterEdit({{ c.center_id }})">ยกเลิก</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7">ยังไม่มีศูนย์บริการในระบบ</td></tr>
+    {% endfor %}
+  </table>
+  <p class="hint">ลบไม่ได้ถ้ามีผู้ใช้งาน (แอดมิน/ช่าง/ผู้จัดการ/เซล) สังกัดศูนย์นี้อยู่ — ย้ายผู้ใช้งานไปศูนย์อื่นก่อนที่หน้า "ผู้ใช้งาน"</p>
+</div>
+
+<script>
+  function toggleCenterEdit(centerId) {
+    var row = document.getElementById('center-edit-row-' + centerId);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+</script>
+{% endblock %}

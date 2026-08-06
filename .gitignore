@@ -1,0 +1,13 @@
+# secrets — ห้าม commit
+.env
+
+# ข้อมูล/ไฟล์ที่สร้างระหว่างรัน
+mysql-data/
+uploads/
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.db
+*.sqlite3

@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}TD ServicePro — ศูนย์บริการ{% endblock %}
+{% block extra_head %}
+{% if centers_with_geo %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>📍 ศูนย์บริการของเรา</h1>
+<p class="hint">คลิกหมุดบนแผนที่ หรือการ์ดศูนย์บริการด้านล่าง เพื่อดูข้อมูลผู้จัดการ เซล ทีมช่าง คิวงานซ่อม และสินค้าที่จำหน่ายของศูนย์นั้น</p>
+
+{% if centers %}
+
+{% if centers_with_geo %}
+<div class="card">
+  <div id="centers-map" style="height:400px; border-radius:8px;"></div>
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:13px;">
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#8e44ad; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> FDM + Resin</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#2e5395; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> FDM เท่านั้น</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#e67e22; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> Resin เท่านั้น</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#ccc; display:inline-block; border:3px solid #f1c40f;"></span> ขอบสีทอง = จำหน่ายสินค้าได้ด้วย</span>
+  </div>
+</div>
+{% endif %}
+
+<div id="center-cards" style="display:flex; flex-wrap:wrap; gap:10px; margin:14px 0;">
+  {% for c in centers %}
+  <div class="center-card" data-center-id="{{ c.center_id }}" onclick="showCenterDetail({{ c.center_id }})"
+       style="border:2px solid #ddd; border-radius:8px; padding:10px 14px; cursor:pointer; min-width:200px; flex:1; background:#fff;">
+    <b>{{ c.name }}</b>
+    <div style="font-size:12px; color:#666;">{{ c.address or '-' }}</div>
+    {% if c.phone %}<div style="font-size:12px; color:#666;">☎ {{ c.phone }}</div>{% endif %}
+    <div style="font-size:12px; margin-top:4px;">
+      <span style="width:9px; height:9px; border-radius:50%; background:{{ c.marker_color }}; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span>
+      {{ c.type_label }}
+      {% if c.sells_products %}<span style="color:#b8860b;">· จำหน่ายสินค้า</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% for c in centers %}
+<div id="center-detail-{{ c.center_id }}" class="card center-detail" style="display:none;">
+  <h2>{{ c.name }}</h2>
+  <p class="hint">{{ c.address or '-' }}{% if c.phone %} · ☎ {{ c.phone }}{% endif %}</p>
+
+  <div class="grid">
+    <div>
+      <label>ผู้จัดการศูนย์</label>
+      {% set info = overview[c.center_id] %}
+      {% if info.managers %}
+        {% for mgr in info.managers %}
+        <div>{{ mgr.name }}</div>
+        {% endfor %}
+      {% else %}
+        <div class="hint">— ยังไม่ได้กำหนดผู้จัดการ —</div>
+      {% endif %}
+    </div>
+    <div>
+      <label>เซล</label>
+      {% if info.sales_people %}
+        {% for sp in info.sales_people %}
+        <div>{{ sp.name }}</div>
+        {% endfor %}
+      {% else %}
+        <div class="hint">— ยังไม่มีเซลประจำศูนย์นี้ —</div>
+      {% endif %}
+    </div>
+    <div style="grid-column: 1 / -1;">
+      <label>ทีมช่างซ่อม</label>
+      {% if info.technicians %}
+        <div>{{ info.technicians|map(attribute='name')|join(', ') }}</div>
+      {% else %}
+        <div class="hint">— ยังไม่มีช่างประจำศูนย์นี้ —</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <h3 style="margin-top:18px;">🛠️ คิวงานซ่อมปัจจุบัน</h3>
+  {% if info.queue %}
+  <table class="sortable">
+    <tr><th>เลขที่ตั๋ว</th><th>รุ่นเครื่อง</th><th>อาการ</th><th>สถานะ</th></tr>
+    {% for tk in info.queue %}
+    <tr>
+      <td>#{{ tk.ticket_id }}</td>
+      <td>{{ tk.model }}</td>
+      <td>{{ tk.issue_category or '-' }}</td>
+      <td>{{ status_labels.get(tk.status, tk.status) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ไม่มีงานในคิวขณะนี้</p>
+  {% endif %}
+
+  <h3 style="margin-top:18px;">🛍️ สินค้าที่จำหน่าย</h3>
+  {% if info.parts_by_category %}
+  <div style="display:flex; flex-direction:column; gap:18px;">
+    {% for grp in info.parts_by_category %}
+    <div>
+      <h4 style="margin:0 0 8px 0;">{{ category_icons.get(grp.category, '📦') }} {{ grp.label }}
+        <span class="hint" style="font-weight:normal;">({{ grp.parts|length }} รายการ)</span>
+      </h4>
+      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+        {% for p in grp.parts %}
+        <div class="product-block" onclick='openProductInquiry({{ c.center_id }}, {{ p.part_name|tojson }}, {{ (p.description or "")|tojson }}, {{ p.images|tojson }}, {{ grp.label|tojson }})'>
+          {% if p.images %}
+          <img src="/part-image/{{ p.images[0] }}" alt="{{ p.part_name }}" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; margin-bottom:8px;">
+          {% else %}
+          <div style="width:100%; aspect-ratio:1; border-radius:8px; margin-bottom:8px; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:32px;">{{ category_icons.get(grp.category, '📦') }}</div>
+          {% endif %}
+          <div style="font-size:13px; font-weight:600; color:var(--ink);">{{ p.part_name }}</div>
+          <div class="hint" style="margin-top:2px;">{% if p.images|length > 1 %}📷 {{ p.images|length }} รูป · {% endif %}ดูรายละเอียด ›</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="hint">ยังไม่มีสินค้าจำหน่ายที่ศูนย์นี้</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div id="productInquiryOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeProductInquiry();">
+  <div class="modal-box" style="max-width:460px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:10px;">
+      <div>
+        <span id="piProductCategory" class="hint" style="display:inline-block; background:var(--bg); border-radius:20px; padding:2px 10px; font-size:12px; margin-bottom:6px;"></span>
+        <h3 style="margin:0;" id="piProductName"></h3>
+      </div>
+      <button type="button" class="btn small secondary" onclick="closeProductInquiry()">ปิด ✕</button>
+    </div>
+    <div id="piGallery" style="display:none; margin-bottom:14px;">
+      <img id="piMainImage" src="" alt="" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; display:block; background:var(--bg);">
+      <div id="piThumbnails" style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;"></div>
+    </div>
+    <p id="piProductDescription" style="display:none; font-size:14px; color:var(--ink-soft); line-height:1.6; margin-top:0; padding-bottom:12px; border-bottom:1px solid var(--border);"></p>
+    <p class="hint" style="margin-top:12px; margin-bottom:8px;">สนใจสินค้านี้? ติดต่อสาขาด้านล่างเพื่อสอบถามรายละเอียดและขอใบเสนอราคา</p>
+    <div style="background:var(--bg); border-radius:8px; padding:12px 14px;">
+      <div style="font-weight:700; color:var(--ink);" id="piCenterName"></div>
+      <div class="hint" id="piCenterAddress" style="margin-top:2px;"></div>
+      <div id="piCenterPhoneWrap" style="margin-top:10px;">
+        <a id="piCenterPhoneLink" class="btn small" href="#">☎ โทรสอบถาม</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var CENTERS_CONTACT = {{ centers_contact_for_js|tojson }};
+
+  function piSetMainImage(filename) {
+    document.getElementById('piMainImage').src = '/part-image/' + filename;
+  }
+
+  function openProductInquiry(centerId, productName, productDescription, images, category) {
+    var c = CENTERS_CONTACT.find(function (x) { return x.id === centerId; });
+    document.getElementById('piProductName').textContent = productName;
+    document.getElementById('piProductCategory').textContent = category || '';
+
+    var galleryEl = document.getElementById('piGallery');
+    var thumbsEl = document.getElementById('piThumbnails');
+    thumbsEl.innerHTML = '';
+    if (images && images.length) {
+      galleryEl.style.display = '';
+      piSetMainImage(images[0]);
+      if (images.length > 1) {
+        images.forEach(function (fn) {
+          var thumb = document.createElement('img');
+          thumb.src = '/part-image/' + fn;
+          thumb.alt = '';
+          thumb.style.cssText = 'width:52px; height:52px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid var(--border);';
+          thumb.onclick = function () { piSetMainImage(fn); };
+          thumbsEl.appendChild(thumb);
+        });
+      }
+    } else {
+      galleryEl.style.display = 'none';
+    }
+
+    var descEl = document.getElementById('piProductDescription');
+    if (productDescription) {
+      descEl.textContent = productDescription;
+      descEl.style.display = '';
+    } else {
+      descEl.style.display = 'none';
+    }
+    document.getElementById('piCenterName').textContent = c ? c.name : '';
+    document.getElementById('piCenterAddress').textContent = (c && c.address) ? c.address : '';
+    var phoneWrap = document.getElementById('piCenterPhoneWrap');
+    var phoneLink = document.getElementById('piCenterPhoneLink');
+    if (c && c.phone) {
+      phoneWrap.style.display = '';
+      phoneLink.href = 'tel:' + c.phone;
+      phoneLink.textContent = '☎ โทร ' + c.phone;
+    } else {
+      phoneWrap.style.display = 'none';
+    }
+    document.getElementById('productInquiryOverlay').style.display = 'flex';
+  }
+
+  function closeProductInquiry() {
+    document.getElementById('productInquiryOverlay').style.display = 'none';
+  }
+</script>
+
+{% else %}
+<p class="hint">ยังไม่มีศูนย์บริการในระบบ</p>
+{% endif %}
+
+<script>
+  function showCenterDetail(id) {
+    document.querySelectorAll('.center-detail').forEach(function (el) { el.style.display = 'none'; });
+    document.querySelectorAll('.center-card').forEach(function (el) {
+      var picked = String(el.dataset.centerId) === String(id);
+      el.style.borderColor = picked ? '#2e5395' : '#ddd';
+      el.style.background = picked ? '#eef3fb' : '#fff';
+    });
+    var panel = document.getElementById('center-detail-' + id);
+    if (panel) {
+      panel.style.display = 'block';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+</script>
+
+{% if centers_with_geo %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  var map = L.map('centers-map');
+  var bounds = [];
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  {% for c in centers_with_geo %}
+  (function () {
+    var marker = L.circleMarker([{{ c.latitude }}, {{ c.longitude }}], {
+      radius: 10, color: {{ ('#f1c40f' if c.sells_products else '#fff')|tojson }}, weight: {{ 3 if c.sells_products else 2 }},
+      fillColor: {{ c.marker_color|tojson }}, fillOpacity: 0.9
+    }).addTo(map);
+    marker.bindPopup({{ (c.name ~ '<br>' ~ (c.address or '') ~ '<br><b>รับซ่อม: ' ~ c.type_label ~ '</b>' ~ ('<br><b style=\"color:#b8860b;\">จำหน่ายสินค้า</b>' if c.sells_products else ''))|tojson }});
+    marker.on('click', function () { showCenterDetail({{ c.center_id }}); });
+    bounds.push([{{ c.latitude }}, {{ c.longitude }}]);
+  })();
+  {% endfor %}
+  if (bounds.length === 1) { map.setView(bounds[0], 14); }
+  else { map.fitBounds(bounds, { padding: [30, 30] }); }
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}แผนบำรุงรักษา{% endblock %}
+{% block content %}
+<h1>🗓️ แผนบำรุงรักษา (Maintenance Scheduler)</h1>
+<p class="hint" style="margin-top:-6px;">กำหนดงานบำรุงรักษาที่ต้องทำเป็นระยะ — ระบบจะคำนวณรอบครบกำหนดให้อัตโนมัติทุกเครื่อง (ตามวันหรือชั่วโมงใช้งานสะสม) และแสดงบน Dashboard/หน้าบำรุงรักษาของลูกค้า</p>
+
+<div class="card" style="max-width:640px;">
+  <h2 style="margin-top:0;">+ เพิ่มแผนบำรุงรักษาใหม่</h2>
+  <form method="post" action="/admin/maintenance-plans/new">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>ชื่องาน</label>
+    <input type="text" name="task_name" placeholder="เช่น ทาจาระบีแกน X/Y/Z" required>
+    <label>ใช้กับเครื่องประเภท</label>
+    <select name="device_type">
+      <option value="">ทุกประเภท</option>
+      {% for t in device_types %}
+      <option value="{{ t }}">{{ t }}</option>
+      {% endfor %}
+    </select>
+    <label>รอบคำนวณ</label>
+    <div style="display:flex; gap:8px;">
+      <input type="number" name="interval_value" min="1" placeholder="เช่น 30 หรือ 200" required style="flex:1;">
+      <select name="interval_type" style="flex:1;">
+        <option value="days">วัน</option>
+        <option value="hours">ชั่วโมงใช้งานสะสม</option>
+      </select>
+    </div>
+    <button class="btn" type="submit" style="margin-top:10px;">เพิ่มแผนบำรุงรักษา</button>
+  </form>
+</div>
+
+<h2>รายการแผนบำรุงรักษาทั้งหมด</h2>
+<div class="card">
+  {% if plans %}
+  <table class="sortable">
+    <tr><th>ชื่องาน</th><th>ใช้กับ</th><th>รอบ</th><th>สถานะ</th><th data-no-sort></th></tr>
+    {% for p in plans %}
+    <tr style="{% if not p.is_active %}opacity:0.5;{% endif %}">
+      <td>{{ p.task_name }}</td>
+      <td>{{ p.device_type or 'ทุกประเภท' }}</td>
+      <td>ทุก {{ p.interval_value }} {{ interval_labels.get(p.interval_type, p.interval_type) }}</td>
+      <td>{% if p.is_active %}<span class="ok">ใช้งานอยู่</span>{% else %}<span class="hint">ปิดใช้งาน</span>{% endif %}</td>
+      <td style="white-space:nowrap;">
+        <form method="post" action="/admin/maintenance-plans/{{ p.plan_item_id }}/toggle" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small secondary" type="submit">{% if p.is_active %}ปิดใช้งาน{% else %}เปิดใช้งาน{% endif %}</button>
+        </form>
+        <form method="post" action="/admin/maintenance-plans/{{ p.plan_item_id }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบแผนบำรุงรักษานี้? ประวัติที่เคยผูกกับแผนนี้จะยังอยู่แต่จะไม่ผูกกับแผนอีกต่อไป');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีแผนบำรุงรักษาในระบบ</p>
+  {% endif %}
+</div>
+{% endblock %}

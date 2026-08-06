@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}บันทึกการขาย{% endblock %}
+{% block content %}
+<h1>🧾 บันทึกการขายสินค้า</h1>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+{% if blocked_reason == "unassigned" %}
+  <div class="card"><p class="warning">บัญชีของคุณยังไม่ได้ถูกกำหนดศูนย์บริการ — กรุณาติดต่อผู้ดูแลระบบ</p></div>
+{% elif blocked_reason == "not_selling" %}
+  <div class="card"><p class="warning">ศูนย์บริการ{{ ' ' + center.name if center else '' }}ยังไม่ได้เปิดขายสินค้า — กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดสิทธิ์ที่หน้า "ศูนย์บริการ"</p></div>
+{% elif blocked_reason == "none_selling" %}
+  <div class="card"><p class="warning">ยังไม่มีศูนย์บริการใดเปิดขายสินค้าในระบบ</p></div>
+{% else %}
+
+{% if selling_centers and selling_centers|length > 1 and user.role == 'admin' %}
+<div class="card">
+  <form method="get" action="/sales/new" style="display:flex; gap:8px; align-items:flex-end;">
+    <div style="flex:1;">
+      <label>ศูนย์บริการที่ขาย</label>
+      <select name="center_id" onchange="this.form.submit()">
+        {% for c in selling_centers %}
+        <option value="{{ c.center_id }}" {% if center and c.center_id == center.center_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <noscript><button class="btn" type="submit">เลือกศูนย์</button></noscript>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>ศูนย์บริการ: {{ center.name }}</h2>
+  <form method="post" action="/sales/new" id="saleForm" onsubmit="return validateSaleForm()">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if user.role == 'admin' %}<input type="hidden" name="center_id" value="{{ center.center_id }}">{% endif %}
+    <div class="grid">
+      <div>
+        <label>ลูกค้า (ไม่บังคับ — เว้นว่างได้สำหรับลูกค้าหน้าร้าน)</label>
+        <select name="customer_id">
+          <option value="">— ลูกค้าหน้าร้าน / ไม่ผูกบัญชี —</option>
+          {% for c in customers %}
+          <option value="{{ c.customer_id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>หมายเหตุ</label>
+        <input type="text" name="notes" placeholder="เช่น ลูกค้าซื้อหน้าร้าน">
+      </div>
+    </div>
+
+    <datalist id="partsList">
+      {% for p in parts %}
+      <option value="{{ p.part_name }} ({{ p.part_sku }})"></option>
+      {% endfor %}
+    </datalist>
+
+    {% if parts %}
+    <table id="linesTable">
+      <thead>
+        <tr><th>สินค้า (พิมพ์เพื่อค้นหา)</th><th>คงเหลือ</th><th>จำนวน</th><th>ราคา/หน่วย (บาท)</th><th>รวม</th><th></th></tr>
+      </thead>
+      <tbody id="linesBody">
+        <tr class="sale-line" data-idx="1">
+          <td>
+            <input type="text" list="partsList" id="label_1" oninput="onPartInput(1)"
+                   placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา หรือคลิกดูรายการทั้งหมด" style="min-width:240px;">
+            <input type="hidden" name="sku_1" id="sku_1">
+          </td>
+          <td id="stock_1" class="hint">-</td>
+          <td><input type="number" name="qty_1" id="qty_1" min="1" value="1" oninput="recalcLine(1)" style="width:80px; margin:0;"></td>
+          <td><input type="number" name="price_1" id="price_1" min="0" step="0.01" oninput="onPriceInput(1)" style="width:110px; margin:0;"></td>
+          <td id="linetotal_1">0 บาท</td>
+          <td><button type="button" class="btn small danger" onclick="removeLine(1)">ลบ</button></td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:bold;">
+          <td colspan="4" style="text-align:right;">ยอดรวมสุทธิ</td>
+          <td id="grandTotal">0 บาท</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p style="margin:10px 0;">
+      <button type="button" class="btn secondary" onclick="addLine()">+ เพิ่มรายการสินค้า</button>
+    </p>
+    <p class="hint">พิมพ์ชื่อสินค้าในช่อง "สินค้า" เพื่อค้นหา หรือคลิกที่ช่องเพื่อดูรายการสินค้าทั้งหมด — เมื่อเลือกสินค้าแล้ว ราคาจะตั้งต้นจากราคาทุนให้อัตโนมัติ (แก้ไขได้) และยอดรวมจะคำนวณให้ทันที</p>
+    <button class="btn" type="submit">บันทึกรายการ</button>
+    {% else %}
+    <p class="hint">ยังไม่มีสินค้าในคลังของศูนย์นี้ — เพิ่มสินค้าได้ที่หน้า "คลังสินค้า"</p>
+    {% endif %}
+  </form>
+</div>
+
+<template id="line-template">
+  <tr class="sale-line" data-idx="__IDX__">
+    <td>
+      <input type="text" list="partsList" id="label___IDX__" oninput="onPartInput(__IDX__)"
+             placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา หรือคลิกดูรายการทั้งหมด" style="min-width:240px;">
+      <input type="hidden" name="sku___IDX__" id="sku___IDX__">
+    </td>
+    <td id="stock___IDX__" class="hint">-</td>
+    <td><input type="number" name="qty___IDX__" id="qty___IDX__" min="1" value="1" oninput="recalcLine(__IDX__)" style="width:80px; margin:0;"></td>
+    <td><input type="number" name="price___IDX__" id="price___IDX__" min="0" step="0.01" oninput="onPriceInput(__IDX__)" style="width:110px; margin:0;"></td>
+    <td id="linetotal___IDX__">0 บาท</td>
+    <td><button type="button" class="btn small danger" onclick="removeLine(__IDX__)">ลบ</button></td>
+  </tr>
+</template>
+
+<script>
+  var PARTS = {{ parts_for_js|tojson }};
+  var PARTS_BY_LABEL = {};
+  PARTS.forEach(function (p) { PARTS_BY_LABEL[p.label] = p; });
+  var lineCounter = 1;
+
+  function fmtMoney(n) {
+    return n.toLocaleString('th-TH', { maximumFractionDigits: 2 }) + ' บาท';
+  }
+
+  function onPartInput(idx) {
+    var labelInput = document.getElementById('label_' + idx);
+    var skuInput = document.getElementById('sku_' + idx);
+    var priceInput = document.getElementById('price_' + idx);
+    var stockCell = document.getElementById('stock_' + idx);
+    var part = PARTS_BY_LABEL[labelInput.value];
+    if (part) {
+      skuInput.value = part.sku;
+      if (priceInput.dataset.auto !== 'false') {
+        priceInput.value = part.price;
+        priceInput.dataset.auto = 'true';
+      }
+      stockCell.textContent = part.stock + ' ชิ้น';
+    } else {
+      skuInput.value = '';
+      stockCell.textContent = '-';
+    }
+    recalcLine(idx);
+  }
+
+  function onPriceInput(idx) {
+    document.getElementById('price_' + idx).dataset.auto = 'false';
+    recalcLine(idx);
+  }
+
+  function recalcLine(idx) {
+    var qty = parseFloat(document.getElementById('qty_' + idx).value) || 0;
+    var price = parseFloat(document.getElementById('price_' + idx).value) || 0;
+    document.getElementById('linetotal_' + idx).textContent = fmtMoney(qty * price);
+    recalcGrandTotal();
+  }
+
+  function recalcGrandTotal() {
+    var rows = document.querySelectorAll('#linesBody .sale-line');
+    var sum = 0;
+    rows.forEach(function (row) {
+      var idx = row.dataset.idx;
+      var qty = parseFloat(document.getElementById('qty_' + idx).value) || 0;
+      var price = parseFloat(document.getElementById('price_' + idx).value) || 0;
+      sum += qty * price;
+    });
+    document.getElementById('grandTotal').textContent = fmtMoney(sum);
+  }
+
+  function addLine() {
+    lineCounter++;
+    var html = document.getElementById('line-template').innerHTML.split('__IDX__').join(lineCounter);
+    var wrap = document.createElement('tbody');
+    wrap.innerHTML = html;
+    document.getElementById('linesBody').appendChild(wrap.querySelector('tr'));
+  }
+
+  function removeLine(idx) {
+    var rows = document.querySelectorAll('#linesBody .sale-line');
+    if (rows.length <= 1) {
+      alert('ต้องมีอย่างน้อย 1 รายการ');
+      return;
+    }
+    var row = document.querySelector('.sale-line[data-idx="' + idx + '"]');
+    if (row) row.remove();
+    recalcGrandTotal();
+  }
+
+  function validateSaleForm() {
+    var rows = document.querySelectorAll('#linesBody .sale-line');
+    var hasValid = false;
+    for (var i = 0; i < rows.length; i++) {
+      var idx = rows[i].dataset.idx;
+      var sku = document.getElementById('sku_' + idx).value;
+      var label = document.getElementById('label_' + idx).value.trim();
+      var qty = parseFloat(document.getElementById('qty_' + idx).value) || 0;
+      if (label && !sku) {
+        alert('กรุณาเลือกสินค้าจากรายการค้นหาให้ตรง (บรรทัดที่ ' + idx + ')');
+        return false;
+      }
+      if (sku && qty > 0) hasValid = true;
+    }
+    if (!hasValid) {
+      alert('กรุณาเพิ่มอย่างน้อย 1 รายการสินค้า พร้อมเลือกสินค้าและระบุจำนวน');
+      return false;
+    }
+    return true;
+  }
+</script>
+{% endif %}
+{% endblock %}

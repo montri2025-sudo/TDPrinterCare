@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Checklist ก่อนพิมพ์ — {{ device.model }}{% endblock %}
+{% block content %}
+<a href="javascript:history.back()">← กลับ</a>
+<h1>✅ Checklist ก่อนพิมพ์ — {{ device.model }}</h1>
+<p class="hint" style="margin-top:-6px;">{{ device.device_sn }} — กรุณาตรวจเช็คให้ครบทุกข้อก่อนเริ่มงานพิมพ์ทุกครั้ง</p>
+
+<div class="card" style="max-width:640px;">
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+  {% if not checklist %}
+  <p class="hint">ยังไม่มีรายการตรวจสอบสำหรับเครื่องประเภทนี้ — สามารถบันทึกเริ่มงานพิมพ์ได้เลย</p>
+  {% endif %}
+  <form method="post" action="/device/{{ device.device_sn|urlencode }}/print/new">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    {% if checklist %}
+    <label>รายการตรวจสอบ (ติ๊กให้ครบทุกข้อ)</label>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+      {% for c in checklist %}
+      <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400; font-size:14px;">
+        <input type="checkbox" name="check_{{ c.checklist_item_id }}" required style="margin-top:3px; width:auto;">
+        <span>{{ c.label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <label>ชั่วโมงที่ประเมินว่าจะใช้พิมพ์งานนี้ (ชม.)</label>
+    <input type="number" name="estimated_hours" min="0" step="0.1" value="0" required>
+    <p class="hint" style="margin-top:0;">ใช้สะสมเป็นชั่วโมงการทำงานของเครื่อง (ปัจจุบันสะสม {{ "%.0f"|format(device.total_usage_hours) }} ชม.) เพื่อคำนวณรอบบำรุงรักษาแบบชั่วโมง (50/200/500 ชม.)</p>
+
+    <label>รายละเอียดงานพิมพ์ (ไม่บังคับ)</label>
+    <textarea name="job_note" rows="2" placeholder="เช่น ชื่อไฟล์/ชิ้นงานที่จะพิมพ์"></textarea>
+
+    <button class="btn" type="submit">✅ ยืนยัน Checklist และเริ่มงานพิมพ์</button>
+  </form>
+</div>
+{% endblock %}

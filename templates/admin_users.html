@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}จัดการผู้ใช้งาน{% endblock %}
+{% block content %}
+<h1>🧑‍💼 จัดการผู้ใช้งาน</h1>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>+ สร้างบัญชีผู้ใช้งานใหม่</h2>
+  <form method="post" action="/admin/users/new">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <div>
+        <label>ชื่อผู้ใช้ (username)</label>
+        <input type="text" name="username" required>
+      </div>
+      <div>
+        <label>รหัสผ่าน</label>
+        <input type="password" name="password" minlength="8" required>
+      </div>
+      <div>
+        <label>ชื่อ-นามสกุล</label>
+        <input type="text" name="name" required>
+      </div>
+      <div>
+        <label>เบอร์โทร (แสดงบนหน้าแรกสาธารณะสำหรับผู้จัดการ/เซล)</label>
+        <input type="text" name="phone" placeholder="เช่น 081-000-0000">
+      </div>
+      <div>
+        <label>สิทธิ์การใช้งาน</label>
+        <select name="role">
+          <option value="admin">Admin / Helpdesk</option>
+          <option value="technician">Technician</option>
+          <option value="manager">Manager</option>
+          <option value="sales">Sales (เซล)</option>
+          <option value="customer">Customer</option>
+        </select>
+      </div>
+      <div>
+        <label>ผูกกับลูกค้า (จำเป็นเฉพาะสิทธิ์ Customer)</label>
+        <select name="customer_id">
+          <option value="">— ไม่ผูก (สำหรับ Staff) —</option>
+          {% for c in customers %}
+          <option value="{{ c.customer_id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>ศูนย์บริการที่สังกัด (สำหรับ Staff)</label>
+        <select name="center_id">
+          <option value="">— ไม่ระบุ —</option>
+          {% for c in centers %}
+          <option value="{{ c.center_id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <button class="btn" type="submit">สร้างบัญชี</button>
+  </form>
+</div>
+
+<h2>รายชื่อผู้ใช้งานทั้งหมด</h2>
+<div class="card">
+  <table class="sortable">
+    <tr>
+      <th>Username</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>สิทธิ์</th><th>ลูกค้าที่ผูก</th><th>ศูนย์บริการ</th><th>สถานะ</th><th data-no-sort>แก้ไข</th><th></th>
+    </tr>
+    {% for u in users %}
+    <tr {% if not u.is_active %}style="opacity:0.55;"{% endif %}>
+      <td>{{ u.username }}</td>
+      <td>{{ u.name }}</td>
+      <td>{{ u.phone or '-' }}</td>
+      <td><span class="tag">{{ u.role }}</span></td>
+      <td>{{ u.customer_name or '-' }}</td>
+      <td>{{ u.center_name or '-' }}</td>
+      <td>
+        {% if u.is_active %}<span class="ok">ใช้งานอยู่</span>{% else %}<span class="warning">ระงับแล้ว</span>{% endif %}
+      </td>
+      <td>
+        <form method="post" action="/admin/users/{{ u.user_id }}/edit" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="text" name="name" value="{{ u.name }}" style="width:120px; margin:0;">
+          <input type="text" name="phone" value="{{ u.phone or '' }}" placeholder="เบอร์โทร" style="width:120px; margin:0;">
+          <select name="role" style="width:110px; margin:0;">
+            <option value="admin" {% if u.role=='admin' %}selected{% endif %}>admin</option>
+            <option value="technician" {% if u.role=='technician' %}selected{% endif %}>technician</option>
+            <option value="manager" {% if u.role=='manager' %}selected{% endif %}>manager</option>
+            <option value="sales" {% if u.role=='sales' %}selected{% endif %}>sales</option>
+            <option value="customer" {% if u.role=='customer' %}selected{% endif %}>customer</option>
+          </select>
+          <select name="center_id" style="width:130px; margin:0;">
+            <option value="">— ไม่ระบุศูนย์ —</option>
+            {% for c in centers %}
+            <option value="{{ c.center_id }}" {% if c.center_id == u.center_id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="password" name="password" minlength="8" placeholder="รหัสผ่านใหม่ (ถ้าจะเปลี่ยน)" style="width:170px; margin:0;">
+          <button class="btn small" type="submit">บันทึก</button>
+        </form>
+      </td>
+      <td style="white-space:nowrap;">
+        {% if u.user_id != user.user_id %}
+        <form method="post" action="/admin/users/{{ u.user_id }}/toggle" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small secondary" type="submit">{{ 'ระงับ' if u.is_active else 'เปิดใช้งาน' }}</button>
+        </form>
+        <form method="post" action="/admin/users/{{ u.user_id }}/delete" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+        {% else %}
+        <span class="hint">(บัญชีของคุณ)</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="hint">การ "ลบ" จะทำไม่ได้หากผู้ใช้มีข้อมูลผูกอยู่ในระบบ (เช่น ช่างที่เคยรับงานซ่อม) — ระบบจะเปลี่ยนเป็น "ระงับการใช้งาน" ให้แทนโดยอัตโนมัติ</p>
+</div>
+{% endblock %}

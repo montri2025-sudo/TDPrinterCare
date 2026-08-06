@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}รายการขาย{% endblock %}
+{% block content %}
+<h1>🧾 รายการขายสินค้า</h1>
+
+{% if unassigned %}
+  <div class="card"><p class="warning">บัญชีของคุณยังไม่ได้ถูกกำหนดศูนย์บริการ — กรุณาติดต่อผู้ดูแลระบบ</p></div>
+{% else %}
+
+<p><a href="/sales/new" class="btn">+ บันทึกการขายใหม่</a></p>
+
+<div class="card">
+  <form method="get" action="/sales/orders" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+    <div><label>ตั้งแต่วันที่</label><input type="date" name="from" value="{{ date_from }}"></div>
+    <div><label>ถึงวันที่</label><input type="date" name="to" value="{{ date_to }}"></div>
+    <button class="btn" type="submit">แสดง</button>
+    <a href="/sales/orders" class="btn small secondary">เดือนนี้ (ค่าเริ่มต้น)</a>
+  </form>
+  <p class="hint" style="margin-top:8px;">แสดงยอดขายระหว่างวันที่ {{ date_from }} ถึง {{ date_to }} — ค่าเริ่มต้นคือเดือนปัจจุบัน นับตามวันที่ขาย</p>
+</div>
+
+<h2>ยอดขายแยกตามประเภทสินค้า</h2>
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));">
+  {% for cs in category_summary %}
+  <div class="card" style="border-left:4px solid {{ cs.color }}; padding:16px;">
+    <div style="font-size:28px; line-height:1;">{{ cs.icon }}</div>
+    <div style="font-size:13px; color:var(--muted); margin-top:6px;">{{ cs.label }}</div>
+    <div style="font-size:22px; font-weight:800; color:var(--ink); margin-top:2px;">{{ "{:,.0f}".format(cs.revenue) }} บาท</div>
+    <div style="font-size:12px; color:var(--muted); margin-top:2px;">ขายแล้ว {{ cs.qty }} ชิ้น</div>
+  </div>
+  {% endfor %}
+</div>
+
+{% set total_revenue = category_summary|sum(attribute='revenue') %}
+<div class="card" style="margin-top:14px;">
+  {% if total_revenue > 0 %}
+  <div style="display:flex; gap:24px; align-items:center; flex-wrap:wrap;">
+    <div style="flex:0 0 240px; max-width:240px;">
+      <canvas id="categoryDoughnutChart"></canvas>
+    </div>
+    <div style="flex:1; min-width:220px;">
+      <p style="font-size:15px; margin:0 0 8px 0;">สัดส่วนยอดขายตามประเภทสินค้า (ช่วงที่เลือก)</p>
+      <table class="sortable" style="font-size:14px;">
+        <tr><th data-no-sort>สัญลักษณ์</th><th>ประเภทสินค้า</th><th>ยอดขาย</th><th>สัดส่วน</th></tr>
+        {% for cs in category_summary if cs.revenue > 0 %}
+        <tr>
+          <td>{{ cs.icon }}</td>
+          <td>{{ cs.label }}</td>
+          <td>{{ "{:,.0f}".format(cs.revenue) }} บาท</td>
+          <td>{{ "%.1f"|format(cs.revenue / total_revenue * 100) }}%</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <p class="hint">ยังไม่มียอดขายในช่วงวันที่ที่เลือก</p>
+  {% endif %}
+</div>
+
+{% if chart_labels %}
+<h2>📈 ยอดขายรายเดือน</h2>
+<div class="card">
+  <canvas id="monthlySalesChart" style="max-height:320px;"></canvas>
+</div>
+{% endif %}
+
+<h2>รายการขายทั้งหมด</h2>
+<div class="card">
+  <table class="sortable">
+    <tr><th>เลขที่</th><th>วันที่</th><th>ศูนย์บริการ</th><th>พนักงานขาย</th><th>ลูกค้า</th><th>ยอดขายรวม</th><th data-no-sort></th></tr>
+    {% for o in orders %}
+    <tr>
+      <td>#{{ o.order_id }}</td>
+      <td>{{ o.created_at }}</td>
+      <td>{{ o.center_name }}</td>
+      <td>{{ o.sold_by_name }}</td>
+      <td>{{ o.customer_name or '— หน้าร้าน —' }}</td>
+      <td>{{ "%.0f"|format(o.total_amount) }} บาท</td>
+      <td><a href="/sales/order/{{ o.order_id }}" class="btn small secondary">ดูรายละเอียด</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7">ยังไม่มีรายการขายในช่วงวันที่ที่เลือก</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if chart_labels or total_revenue > 0 %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+{% endif %}
+{% if total_revenue > 0 %}
+<script>
+  new Chart(document.getElementById('categoryDoughnutChart'), {
+    type: 'doughnut',
+    data: {
+      labels: {{ category_summary|selectattr('revenue', 'gt', 0)|map(attribute='label')|list|tojson }},
+      datasets: [{
+        data: {{ category_summary|selectattr('revenue', 'gt', 0)|map(attribute='revenue')|list|tojson }},
+        backgroundColor: {{ category_summary|selectattr('revenue', 'gt', 0)|map(attribute='color')|list|tojson }},
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } }
+    }
+  });
+</script>
+{% endif %}
+{% if chart_labels %}
+<script>
+  new Chart(document.getElementById('monthlySalesChart'), {
+    type: 'bar',
+    data: {
+      labels: {{ chart_labels|tojson }},
+      datasets: [{
+        label: 'ยอดขายรวม (บาท)',
+        data: {{ chart_values|tojson }},
+        backgroundColor: '#2e5395'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}

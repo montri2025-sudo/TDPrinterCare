@@ -1,0 +1,102 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: tdprinter-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-tdprinter_care}
+      - MYSQL_USER=${MYSQL_USER:-tdprinter}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+    volumes:
+      # persist MySQL's data directory so data survives container recreation
+      - ./mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      # เชื่อมเฉพาะ network ภายใน (default) ให้คุยกับ container แอปได้เท่านั้น —
+      # ไม่ต่อออก odoo-network โดยตรง เพื่อไม่ให้ฐานข้อมูลถูกมองเห็นจาก service อื่นบน network นั้น
+      - default
+
+  tdprinter-care:
+    build:
+      context: .
+      # to build directly from GitHub instead of this local checkout, swap the
+      # line above for:  context: git@github.com:montri2025-sudo/TDPrinterCare.git
+    image: tdprinter-care:latest
+    container_name: tdprinter-care
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - PORT=8000
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-tdprinter}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-tdprinter_care}
+      # ปิดบัญชีทดสอบ/ข้อมูลตัวอย่างตอน deploy จริง ตั้งเป็น 1 เฉพาะรอบแรกที่ยังไม่มี admin
+      # แล้วค่อยตั้งกลับเป็น 0 หรือใส่ INITIAL_ADMIN_USERNAME/PASSWORD แทนถ้าไม่อยากได้บัญชีทดสอบเลย
+      - SEED_DEMO_DATA=${SEED_DEMO_DATA:-0}
+      - INITIAL_ADMIN_USERNAME=${INITIAL_ADMIN_USERNAME:-}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:-}
+      # cookie แบบ Secure (ส่งเฉพาะผ่าน HTTPS) — เปิดไว้เสมอเมื่อใช้งานจริงผ่าน reverse proxy ที่ทำ TLS
+      - COOKIE_SECURE=${COOKIE_SECURE:-1}
+      # --- อีเมลแจ้งเตือน (Alert & Notification) — ไม่บังคับ เว้นว่างไว้ได้ ระบบจะแจ้งเตือนในแอป (in-app)
+      # ตามปกติ แค่จะไม่ส่งอีเมลควบคู่ไปด้วยเท่านั้น ใส่ค่าจริงใน .env เพื่อเปิดใช้งานการส่งอีเมล
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-1}
+      # --- สมัครสมาชิก/ล็อกอินด้วย Google หรือ LINE (OAuth2) — ไม่บังคับ เว้นว่างไว้ได้ ถ้าไม่ตั้งค่า
+      # ปุ่มที่หน้า /signup จะขึ้นสถานะ "ยังไม่พร้อมใช้งาน" เฉยๆ (ไม่กระทบฟีเจอร์อื่นของระบบ)
+      # วิธีตั้งค่า:
+      #   1) Google: ไปที่ https://console.cloud.google.com/apis/credentials สร้าง OAuth client ID
+      #      ประเภท "Web application" ใส่ Authorized redirect URI เป็น {PUBLIC_BASE_URL}/auth/google/callback
+      #      แล้วนำ Client ID/Secret มาใส่ GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET ใน .env
+      #   2) LINE: ไปที่ https://developers.line.biz/console/ สร้างช่องทาง "LINE Login" ใส่ Callback URL
+      #      เป็น {PUBLIC_BASE_URL}/auth/line/callback แล้วนำ Channel ID/Secret มาใส่
+      #      LINE_CHANNEL_ID/LINE_CHANNEL_SECRET ใน .env
+      #   3) PUBLIC_BASE_URL ต้องตรงกับโดเมนจริงทุกตัวอักษร (รวม https://) ไม่มี / ปิดท้าย
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://servicepro.tdprinter.com}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - LINE_CHANNEL_ID=${LINE_CHANNEL_ID:-}
+      - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET:-}
+      # ใช้กับ reverse proxy ที่อ่านค่าอัตโนมัติ เช่น nginx-proxy/jwilder — ให้ proxy รู้ว่า
+      # โดเมนนี้ควรวิ่งไปที่ container นี้ พอร์ตไหน (ถ้าไม่ได้ใช้ reverse proxy แบบนี้ ลบทิ้งได้)
+      - VIRTUAL_HOST=servicepro.tdprinter.com
+      - VIRTUAL_PORT=8000
+    volumes:
+      # persist customer/part uploaded photos & videos
+      - ./uploads:/app/uploads
+    networks:
+      # default = คุยกับ container mysql ได้ตามเดิม, odoo-network = network ภายนอกที่มีอยู่แล้ว
+      # (เช่น reverse proxy nginx-proxy/Odoo) เพื่อให้ proxy บน network นั้นมองเห็น/routing มาที่แอปนี้ได้
+      - default
+      - odoo-network
+
+networks:
+  odoo-network:
+    external: true
+
+# หมายเหตุด้านความปลอดภัยก่อนใช้งานจริง:
+#  1. สร้างไฟล์ .env (ก็อปจาก .env.example) แล้วตั้งรหัสผ่าน MySQL ใหม่ทั้งหมด — ห้าม commit
+#     ไฟล์ .env เข้า git เด็ดขาด (มีอยู่ใน .gitignore ให้แล้ว)
+#  2. ตั้ง SEED_DEMO_DATA=0 หลังจากสร้างบัญชีแอดมินจริงแล้ว เพื่อไม่ให้บัญชีทดสอบ (admin1/admin123 ฯลฯ)
+#     ที่รหัสผ่านรู้กันทั่วไปหลงเหลืออยู่ในระบบจริง — หรือใช้ INITIAL_ADMIN_USERNAME/PASSWORD
+#     เพื่อสร้างบัญชีแอดมินคนแรกโดยไม่ต้อง seed ข้อมูลตัวอย่างเลยตั้งแต่แรก
+#  3. ต้องรันหลัง reverse proxy ที่ทำ HTTPS ให้ (เช่น nginx-proxy + acme-companion) มิเช่นนั้น
+#     cookie แบบ Secure จะทำให้ browser ไม่ยอมส่ง cookie กลับมาและ login ไม่ติด — ถ้ายังไม่มี HTTPS
+#     ให้ตั้ง COOKIE_SECURE=0 ชั่วคราวเพื่อทดสอบเท่านั้น ห้ามใช้แบบนี้กับระบบจริงที่มีข้อมูลลูกค้า
+#  4. ตัด ports: "8000:8000" ออกจาก container tdprinter-care แล้ว เพื่อไม่ให้พอร์ต 8000 เปิดตรงออกสู่
+#     อินเทอร์เน็ต/เครือข่ายภายนอกโดยไม่ผ่าน reverse proxy — ตอนนี้เข้าถึงแอปได้ทางเดียวคือผ่าน
+#     reverse proxy บน odoo-network (ตาม VIRTUAL_HOST/VIRTUAL_PORT) เท่านั้น ถ้าต้อง debug เข้าตรงๆ
+#     ชั่วคราว ใช้ `docker compose exec tdprinter-care sh` หรือเปิด port-forward เฉพาะกิจแทน อย่าเปิด
+#     ports: กลับมาแบบถาวรบนเครื่อง production

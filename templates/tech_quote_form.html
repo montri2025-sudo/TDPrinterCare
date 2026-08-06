@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}ออกใบเสนอราคา — ตั๋ว #{{ t.ticket_id }}{% endblock %}
+{% block content %}
+<a href="/tech/ticket/{{ t.ticket_id }}">← กลับไปหน้ารายละเอียดตั๋ว</a>
+<h1>ออกใบเสนอราคา — ตั๋ว #{{ t.ticket_id }}</h1>
+<p class="hint">ลูกค้า: {{ t.customer_name }} · เครื่อง: {{ t.model }}</p>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  {% if not loggable %}
+  <p class="hint">ยังไม่มีประวัติการซ่อมสำหรับตั๋วนี้ — กรุณาบันทึกผลการวินิจฉัย/ผลการซ่อมในหน้ารายละเอียดตั๋วก่อน ระบบจะดึงรายการจากตรงนั้นมาออกใบเสนอราคาให้อัตโนมัติ</p>
+  <a href="/tech/ticket/{{ t.ticket_id }}" class="btn">← กลับไปบันทึกผลการซ่อม</a>
+  {% else %}
+  <form method="post" action="/tech/ticket/{{ t.ticket_id }}/quote/new">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h2>เลือกรายการจากประวัติการซ่อม</h2>
+    <table>
+      <tr><th></th><th>วันที่</th><th>รายการ (จากประวัติการซ่อม)</th><th>ราคาที่จะเสนอ (บาท)</th></tr>
+      {% for row in loggable %}
+      <tr>
+        <td><input type="checkbox" name="include_{{ row.log_id }}" checked style="width:auto; margin:0;"></td>
+        <td>{{ row.created_at }}</td>
+        <td>{{ row.description }}</td>
+        <td><input type="number" name="price_{{ row.log_id }}" value="{{ row.suggested_price }}" min="0" step="0.01" style="width:120px; margin:0;"></td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="hint">ราคาตั้งต้นดึงมาจากค่าอะไหล่ + ค่าบริการที่บันทึกไว้ในประวัติการซ่อม ปรับตัวเลขได้ก่อนเสนอราคาจริง</p>
+
+    <label>หมายเหตุ</label>
+    <textarea name="notes" rows="3" placeholder="เงื่อนไข/ข้อมูลเพิ่มเติมสำหรับลูกค้า"></textarea>
+    <button class="btn" type="submit">ออกใบเสนอราคา</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

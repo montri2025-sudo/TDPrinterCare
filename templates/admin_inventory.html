@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}คลังสินค้า{% endblock %}
+{% block content %}
+<h1>📦 คลังสินค้า</h1>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+<p class="hint">สินค้าที่มูลค่าการเบิกต่อครั้งเกิน {{ threshold }} บาท ต้องรอผู้จัดการอนุมัติก่อนตัดสต็อก · แนบรูปได้สูงสุด {{ max_images }} รูปต่อชิ้น (ไฟล์ละไม่เกิน {{ max_image_mb }} MB)</p>
+
+<div class="card">
+  <form method="get" action="/admin/inventory" style="display:flex; gap:8px; align-items:flex-end;">
+    <div style="flex:1;"><label>ค้นหา (SKU / ชื่อสินค้า / รุ่นที่ใช้ร่วมกันได้)</label><input type="text" name="q" value="{{ q or '' }}" placeholder="เช่น NZ-04, หัวฉีด, Kobra 2" data-search-for="inventory-table" autocomplete="off"></div>
+    <button class="btn" type="submit">ค้นหา</button>
+    {% if q %}<a href="/admin/inventory" class="btn secondary">ล้างการค้นหา</a>{% endif %}
+  </form>
+  <p class="hint" style="margin-top:8px;">พิมพ์เพื่อกรองรายการทันที — ไม่ต้องกดปุ่ม "ค้นหา"</p>
+</div>
+
+<div class="card">
+  <h2>+ เพิ่มสินค้าใหม่</h2>
+  <form method="post" action="/admin/inventory/new" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <div><label>รหัสสินค้า (SKU)</label><input type="text" name="part_sku" required></div>
+      <div><label>ชื่อสินค้า</label><input type="text" name="part_name" required></div>
+      <div>
+        <label>ประเภทสินค้า</label>
+        <select name="category">
+          {% for cat in categories %}
+          <option value="{{ cat }}" {% if cat == 'Spare_Part' %}selected{% endif %}>{{ category_labels[cat] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>ลักษณะกรรมสิทธิ์สินค้า</label>
+        <select name="ownership">
+          <option value="owned" selected>สินค้าของศูนย์ (Owned)</option>
+          <option value="consignment">ฝากขายจาก HQ (Consignment)</option>
+        </select>
+      </div>
+      <div><label>รุ่นที่ใช้ร่วมกันได้</label><input type="text" name="compatible_models" placeholder="เช่น Kobra 2, Kobra 3"></div>
+      <div><label>จำนวนคงเหลือเริ่มต้น</label><input type="number" name="stock_quantity" value="0" min="0"></div>
+      <div><label>ราคาทุนสินค้า (บาท)</label><input type="number" name="cost_price" value="0" min="0" step="0.01"></div>
+      <div><label>ค่าบริการเปลี่ยนอุปกรณ์ (บาท)</label><input type="number" name="labor_fee" value="0" min="0" step="0.01"></div>
+      <div><label>ค่าคอมมิชชั่น (บาท)</label><input type="number" name="commission_fee" value="0" min="0" step="0.01"></div>
+      <div><label>จุดสั่งซื้อ (Reorder level)</label><input type="number" name="reorder_level" value="0" min="0"></div>
+      <div>
+        <label>ศูนย์บริการที่เก็บสินค้า</label>
+        <select name="center_id">
+          <option value="">— คลังกลาง / ใช้ร่วมกันทุกสาขา —</option>
+          {% for c in centers %}
+          <option value="{{ c.center_id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div><label>รูปสินค้า (1 รูป)</label><input type="file" name="image" accept="image/*"></div>
+      <div style="grid-column: 1 / -1;"><label>รายละเอียดสินค้า</label><textarea name="description" rows="2" placeholder="สเปก/จุดเด่น/หมายเหตุ — แสดงให้ลูกค้าเห็นตอนสอบถามสินค้าที่หน้าแรก"></textarea></div>
+    </div>
+    <button class="btn" type="submit">เพิ่มสินค้า</button>
+  </form>
+</div>
+
+<div class="card">
+  <table class="sortable" id="inventory-table">
+    <tr>
+      <th data-no-sort>รูป</th><th>SKU</th><th>ชื่อสินค้า</th><th>ประเภท</th><th>คงเหลือ</th>
+      <th>ราคา</th><th>ศูนย์บริการ</th><th>กรรมสิทธิ์</th><th data-no-sort></th>
+    </tr>
+    {% for p in parts %}
+    <tr data-pair-id="edit-row-{{ p.part_sku }}" {% if p.stock_quantity <= p.reorder_level %}style="background:#fdecea;"{% endif %}>
+      <td>
+        <a href="javascript:void(0)" onclick='openProductDetail({{ p.part_sku|tojson }})' title="คลิกเพื่อดูรายละเอียดสินค้า">
+          {% if p.image_filename %}
+          <img src="/part-image/{{ p.image_filename }}" alt="{{ p.part_name }}" style="width:48px; height:48px; object-fit:cover; border-radius:6px; border:1px solid var(--border); display:block;">
+          {% else %}
+          <div style="width:48px; height:48px; border-radius:6px; background:var(--bg); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:20px;">{{ category_icons.get(p.category, '📦') if category_icons else '📦' }}</div>
+          {% endif %}
+        </a>
+        {% if p.gallery %}<div class="hint" style="margin-top:2px; white-space:nowrap;">+{{ p.gallery|length }} รูป</div>{% endif %}
+      </td>
+      <td>{{ p.part_sku }}</td>
+      <td>
+        {{ p.part_name }}
+        {% if p.description %}<div class="hint" style="margin-top:0; max-width:220px; white-space:normal;">{{ p.description[:80] }}{% if p.description|length > 80 %}…{% endif %}</div>{% endif %}
+      </td>
+      <td>{{ category_labels.get(p.category, p.category) }}</td>
+      <td>{{ p.stock_quantity }} {% if p.stock_quantity <= p.reorder_level %}<span class="warning">ต่ำ!</span>{% endif %}</td>
+      <td>{{ "%.0f"|format(p.cost_price) }} บาท</td>
+      <td>
+        {% set center = centers|selectattr('center_id', 'equalto', p.center_id)|list %}
+        {{ center[0].name if center else '— คลังกลาง —' }}
+      </td>
+      <td>
+        {% if p.ownership == 'consignment' %}
+        <span class="tag" style="background:#fef3c7; color:#92400e;">📦 ฝากขาย</span>
+        {% else %}
+        <span class="hint">ของศูนย์</span>
+        {% endif %}
+      </td>
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" type="button" onclick="toggleEdit('{{ p.part_sku }}')">แก้ไข</button>
+        <form method="post" action="/admin/inventory/{{ p.part_sku }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบสินค้า {{ p.part_name }} ออกจากระบบ?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="edit-row-{{ p.part_sku }}" style="display:none; background:#f7f9fc;">
+      <td colspan="9">
+        <form method="post" action="/admin/inventory/{{ p.part_sku }}/edit" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="grid">
+            <div style="grid-column: 1 / -1; display:flex; gap:14px; align-items:center; background:var(--bg); border-radius:8px; padding:10px 12px;">
+              {% if p.image_filename %}
+              <img src="/part-image/{{ p.image_filename }}" alt="{{ p.part_name }}" style="width:64px; height:64px; object-fit:cover; border-radius:8px; border:2px solid var(--grad-mid); flex-shrink:0;">
+              {% else %}
+              <div style="width:64px; height:64px; border-radius:8px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0;">📦</div>
+              {% endif %}
+              <div style="flex:1; min-width:180px;">
+                <label style="margin-top:0;">เปลี่ยนรูปหลัก</label>
+                <input type="file" name="image" accept="image/*" style="margin-bottom:0;">
+              </div>
+            </div>
+            <div><label>ชื่อสินค้า</label><input type="text" name="part_name" value="{{ p.part_name }}" required></div>
+            <div>
+              <label>ประเภทสินค้า</label>
+              <select name="category">
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if cat == p.category %}selected{% endif %}>{{ category_labels[cat] }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label>ลักษณะกรรมสิทธิ์สินค้า</label>
+              <select name="ownership">
+                <option value="owned" {% if p.ownership != 'consignment' %}selected{% endif %}>สินค้าของศูนย์ (Owned)</option>
+                <option value="consignment" {% if p.ownership == 'consignment' %}selected{% endif %}>ฝากขายจาก HQ (Consignment)</option>
+              </select>
+            </div>
+            <div><label>จำนวนคงเหลือ</label><input type="number" name="stock_quantity" value="{{ p.stock_quantity }}" min="0"></div>
+            <div><label>ราคาทุนสินค้า (บาท)</label><input type="number" name="cost_price" value="{{ p.cost_price }}" min="0" step="0.01"></div>
+            <div><label>รุ่นที่ใช้ร่วมกันได้</label><input type="text" name="compatible_models" value="{{ p.compatible_models or '' }}"></div>
+            <div><label>ค่าบริการเปลี่ยนอุปกรณ์ (บาท)</label><input type="number" name="labor_fee" value="{{ p.labor_fee }}" min="0" step="0.01"></div>
+            <div><label>ค่าคอมมิชชั่น (บาท)</label><input type="number" name="commission_fee" value="{{ p.commission_fee }}" min="0" step="0.01"></div>
+            <div><label>จุดสั่งซื้อ (Reorder level)</label><input type="number" name="reorder_level" value="{{ p.reorder_level }}" min="0"></div>
+            <div>
+              <label>ศูนย์บริการที่เก็บสินค้า</label>
+              <select name="center_id">
+                <option value="" {% if not p.center_id %}selected{% endif %}>— คลังกลาง / ใช้ร่วมกันทุกสาขา —</option>
+                {% for c in centers %}
+                <option value="{{ c.center_id }}" {% if c.center_id == p.center_id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div style="grid-column: 1 / -1;"><label>รายละเอียดสินค้า</label><textarea name="description" rows="2" placeholder="สเปก/จุดเด่น/หมายเหตุ — แสดงให้ลูกค้าเห็นตอนสอบถามสินค้าที่หน้าแรก">{{ p.description or '' }}</textarea></div>
+          </div>
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleEdit('{{ p.part_sku }}')">ยกเลิก</button>
+        </form>
+
+        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-soft);">
+          <label>รูปเพิ่มเติม (แกลเลอรี) — {{ p.gallery|length + (1 if p.image_filename else 0) }}/{{ max_images }} รูป</label>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+            {% if p.image_filename %}
+            <div style="text-align:center;">
+              <img src="/part-image/{{ p.image_filename }}" alt="{{ p.part_name }}" style="width:64px; height:64px; object-fit:cover; border-radius:6px; border:2px solid var(--grad-mid); display:block;">
+              <span class="hint">ปกหลัก</span>
+            </div>
+            {% endif %}
+            {% for img in p.gallery %}
+            <div style="text-align:center;">
+              <img src="/part-image/{{ img.stored_name }}" alt="{{ p.part_name }}" style="width:64px; height:64px; object-fit:cover; border-radius:6px; border:1px solid var(--border); display:block;">
+              <form method="post" action="/admin/inventory/{{ p.part_sku }}/gallery/{{ img.image_id }}/delete"
+                    onsubmit="return confirm('ลบรูปนี้ออกจากแกลเลอรี?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn small danger" type="submit" style="padding:2px 8px; font-size:11px; margin-top:2px;">ลบ</button>
+              </form>
+            </div>
+            {% endfor %}
+          </div>
+          {% if p.gallery_slots_left > 0 %}
+          <form method="post" action="/admin/inventory/{{ p.part_sku }}/gallery" enctype="multipart/form-data" style="display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div style="flex:1; min-width:180px;"><input type="file" name="images" accept="image/*" multiple></div>
+            <button class="btn small secondary" type="submit">+ เพิ่มรูป (เหลืออีก {{ p.gallery_slots_left }} รูป)</button>
+          </form>
+          {% else %}
+          <p class="hint">มีรูปครบ {{ max_images }} รูปแล้ว — ลบรูปเดิมก่อนถึงจะเพิ่มรูปใหม่ได้</p>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9">{% if q %}ไม่พบสินค้าที่ตรงกับ "{{ q }}"{% else %}ยังไม่มีสินค้าในคลัง{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="hint">ลบไม่ได้ถ้าสินค้านั้นเคยถูกเบิกใช้ในงานซ่อมแล้ว (ป้องกันประวัติการซ่อม/ใบแจ้งหนี้เก่าพัง) · คลิกรูปเพื่อดูรายละเอียดสินค้าทั้งหมด · คลิกปุ่ม "แก้ไข" เพื่อแก้ไขข้อมูลและจัดการรูป/แกลเลอรี</p>
+</div>
+
+<div id="productDetailOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeProductDetail();">
+  <div class="modal-box" style="max-width:480px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:10px;">
+      <div>
+        <span id="pdCategory" class="hint" style="display:inline-block; background:var(--bg); border-radius:20px; padding:2px 10px; font-size:12px; margin-bottom:6px;"></span>
+        <span id="pdOwnership" class="tag" style="display:none; background:#fef3c7; color:#92400e; margin-bottom:6px;">📦 ฝากขาย</span>
+        <h3 style="margin:0;" id="pdName"></h3>
+        <div class="hint" id="pdSku" style="margin-top:2px;"></div>
+      </div>
+      <button type="button" class="btn small secondary" onclick="closeProductDetail()">ปิด ✕</button>
+    </div>
+    <div id="pdGallery" style="display:none; margin-bottom:14px;">
+      <img id="pdMainImage" src="" alt="" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; display:block; background:var(--bg);">
+      <div id="pdThumbnails" style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;"></div>
+    </div>
+    <p id="pdDescription" style="display:none; font-size:14px; color:var(--ink-soft); line-height:1.6; margin-top:0; padding-bottom:12px; border-bottom:1px solid var(--border);"></p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; font-size:14px;">
+      <div><span class="hint">รุ่นที่ใช้ร่วมกันได้</span><br><b id="pdModels"></b></div>
+      <div><span class="hint">ศูนย์บริการที่เก็บสินค้า</span><br><b id="pdCenter"></b></div>
+      <div><span class="hint">จำนวนคงเหลือ</span><br><b id="pdStock"></b></div>
+      <div><span class="hint">จุดสั่งซื้อ (Reorder level)</span><br><b id="pdReorder"></b></div>
+      <div><span class="hint">ราคาทุนสินค้า</span><br><b id="pdCost"></b></div>
+      <div><span class="hint">ค่าบริการเปลี่ยนอุปกรณ์</span><br><b id="pdLabor"></b></div>
+      <div><span class="hint">ค่าคอมมิชชั่น</span><br><b id="pdCommission"></b></div>
+    </div>
+    <div style="margin-top:16px; display:flex; gap:8px;">
+      <button type="button" class="btn small" onclick="editFromProductDetail()">✏️ แก้ไขสินค้านี้</button>
+      <button type="button" class="btn small secondary" onclick="closeProductDetail()">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleEdit(sku) {
+    var row = document.getElementById('edit-row-' + sku);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+
+  var PARTS_DETAIL = {{ parts_for_js|tojson }};
+  var currentProductDetailSku = null;
+
+  function fmtBaht(n) { return (n || 0).toLocaleString('th-TH', {maximumFractionDigits: 2}); }
+
+  function pdSetMainImage(filename) {
+    document.getElementById('pdMainImage').src = '/part-image/' + filename;
+  }
+
+  function openProductDetail(sku) {
+    var p = PARTS_DETAIL.find(function (x) { return x.sku === sku; });
+    if (!p) return;
+    currentProductDetailSku = sku;
+
+    document.getElementById('pdName').textContent = p.name;
+    document.getElementById('pdSku').textContent = 'SKU: ' + p.sku;
+    document.getElementById('pdCategory').textContent = p.category_icon + ' ' + p.category_label;
+    document.getElementById('pdOwnership').style.display = (p.ownership === 'consignment') ? 'inline-block' : 'none';
+
+    var galleryEl = document.getElementById('pdGallery');
+    var thumbsEl = document.getElementById('pdThumbnails');
+    thumbsEl.innerHTML = '';
+    if (p.images && p.images.length) {
+      galleryEl.style.display = '';
+      pdSetMainImage(p.images[0]);
+      if (p.images.length > 1) {
+        p.images.forEach(function (fn) {
+          var thumb = document.createElement('img');
+          thumb.src = '/part-image/' + fn;
+          thumb.alt = '';
+          thumb.style.cssText = 'width:52px; height:52px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid var(--border);';
+          thumb.onclick = function () { pdSetMainImage(fn); };
+          thumbsEl.appendChild(thumb);
+        });
+      }
+    } else {
+      galleryEl.style.display = 'none';
+    }
+
+    var descEl = document.getElementById('pdDescription');
+    if (p.description) {
+      descEl.textContent = p.description;
+      descEl.style.display = '';
+    } else {
+      descEl.style.display = 'none';
+    }
+
+    document.getElementById('pdModels').textContent = p.compatible_models || '—';
+    document.getElementById('pdCenter').textContent = p.center_name || '— คลังกลาง —';
+    document.getElementById('pdStock').textContent = p.stock_quantity + (p.stock_quantity <= p.reorder_level ? ' ⚠️ ต่ำกว่าจุดสั่งซื้อ' : '');
+    document.getElementById('pdReorder').textContent = p.reorder_level;
+    document.getElementById('pdCost').textContent = fmtBaht(p.cost_price) + ' บาท';
+    document.getElementById('pdLabor').textContent = fmtBaht(p.labor_fee) + ' บาท';
+    document.getElementById('pdCommission').textContent = fmtBaht(p.commission_fee) + ' บาท';
+
+    document.getElementById('productDetailOverlay').style.display = 'flex';
+  }
+
+  function closeProductDetail() {
+    document.getElementById('productDetailOverlay').style.display = 'none';
+  }
+
+  function editFromProductDetail() {
+    var sku = currentProductDetailSku;
+    closeProductDetail();
+    if (sku) toggleEdit(sku);
+  }
+</script>
+{% endblock %}

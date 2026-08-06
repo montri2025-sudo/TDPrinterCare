@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}รายงานของฉัน{% endblock %}
+{% block content %}
+<h1>📊 รายงานการทำงานของฉัน</h1>
+
+<div class="card">
+  <form method="get" action="/tech/report" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+    <div><label>ตั้งแต่วันที่</label><input type="date" name="from" value="{{ date_from }}"></div>
+    <div><label>ถึงวันที่</label><input type="date" name="to" value="{{ date_to }}"></div>
+    <button class="btn" type="submit">แสดง</button>
+    <a href="/tech/report" class="btn small secondary">เดือนนี้ (ค่าเริ่มต้น)</a>
+  </form>
+  <p class="hint" style="margin-top:8px;">แสดงงานและอะไหล่ที่เบิกระหว่างวันที่ {{ date_from }} ถึง {{ date_to }} — ค่าเริ่มต้นคือเดือนปัจจุบัน</p>
+</div>
+
+<h2>งานที่ทำ แยกตามสถานะ</h2>
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
+  {% for s in status_summary %}
+  <div class="card" style="border-top:4px solid var(--{{ ['grey','amber','orange','blue','purple','green'][loop.index0] }}-fg); padding:16px; text-align:center;">
+    <div style="font-size:30px; line-height:1;">{{ s.icon }}</div>
+    <div style="font-size:13px; color:var(--muted); margin-top:6px;">{{ s.label }}</div>
+    <div style="font-size:26px; font-weight:800; color:var(--ink); margin-top:2px;">{{ s.count }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-top:14px;">
+  <div class="card" style="padding:16px;">
+    <div style="font-size:13px; color:var(--muted);">รวมงานในช่วงนี้</div>
+    <div style="font-size:24px; font-weight:800; color:var(--ink); margin-top:2px;">{{ tickets|length }} งาน</div>
+  </div>
+  <div class="card" style="padding:16px;">
+    <div style="font-size:13px; color:var(--muted);">✅ ปิดงานสำเร็จ</div>
+    <div style="font-size:24px; font-weight:800; color:var(--green-fg); margin-top:2px;">{{ resolved_count }} งาน</div>
+  </div>
+  <div class="card" style="padding:16px;">
+    <div style="font-size:13px; color:var(--muted);">🔩 อะไหล่ที่เบิกรวม</div>
+    <div style="font-size:24px; font-weight:800; color:var(--ink); margin-top:2px;">{{ total_parts_qty }} ชิ้น</div>
+  </div>
+  <div class="card" style="padding:16px;">
+    <div style="font-size:13px; color:var(--muted);">⏳ รออนุมัติเบิกอะไหล่</div>
+    <div style="font-size:24px; font-weight:800; color:var(--amber-fg); margin-top:2px;">{{ pending_count }} รายการ</div>
+  </div>
+</div>
+
+<h2>อะไหล่ที่เบิกใช้ (รวมตามรายการ)</h2>
+<div class="card">
+  <table class="sortable">
+    <tr><th>รหัสอะไหล่</th><th>ชื่ออะไหล่</th><th>จำนวนที่เบิกรวม</th><th>จำนวนครั้งที่เบิก</th></tr>
+    {% for r in parts_rows %}
+    <tr>
+      <td>{{ r.sku }}</td>
+      <td>{{ r.part_name or r.sku }}</td>
+      <td>{{ r.total_qty }} ชิ้น</td>
+      <td>{{ r.times_used }} ครั้ง</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">ยังไม่มีการเบิกอะไหล่ในช่วงวันที่ที่เลือก</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<h2>รายการงานในช่วงนี้</h2>
+<div class="card">
+  <table class="sortable">
+    <tr><th>#</th><th>ลูกค้า</th><th>เครื่อง</th><th>สาขา</th><th>เริ่มงาน</th><th>ปิดงาน</th><th>สถานะ</th><th data-no-sort></th></tr>
+    {% for t in tickets %}
+    <tr>
+      <td>{{ t.ticket_id }}</td>
+      <td>{{ t.customer_name }}</td>
+      <td>{{ t.model }}</td>
+      <td>{{ t.center_name or '-' }}</td>
+      <td>{{ t.created_at[:10] if t.created_at else '-' }}</td>
+      <td>{{ t.closed_at[:10] if t.closed_at else '-' }}</td>
+      <td><span class="badge {{ t.status|replace(' ','-')|replace('/','-') }}">{{ status_icons.get(t.status, '') }} {{ status_labels.get(t.status, t.status) }}</span></td>
+      <td><a href="/tech/ticket/{{ t.ticket_id }}" class="btn small">เปิดงาน</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8">ยังไม่มีงานในช่วงวันที่ที่เลือก</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

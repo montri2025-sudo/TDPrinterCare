@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}เช็กสถานะงานซ่อม{% endblock %}
+{% block content %}
+<h1>🔍 เช็กสถานะงานซ่อม</h1>
+<div class="card">
+  <form method="get" action="/track">
+    <label>Serial Number ของเครื่องพิมพ์</label>
+    <input type="text" name="sn" value="{{ sn or '' }}" placeholder="เช่น AC-KOBRA2-0001" required>
+    <button class="btn" type="submit">ค้นหา</button>
+  </form>
+</div>
+
+{% if sn and not device %}
+  <div class="error-box">ไม่พบเครื่องพิมพ์ที่มี Serial Number นี้ในระบบ</div>
+{% endif %}
+
+{% if device %}
+  {% set latest = tickets[0] if tickets else None %}
+  <div class="card" style="background:linear-gradient(100deg, var(--grad-mid), var(--grad-end)); color:#fff; border:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div style="font-size:12.5px; opacity:0.85; font-weight:600; letter-spacing:0.3px;">🖨️ เครื่องพิมพ์</div>
+        <div style="font-size:22px; font-weight:800; margin-top:2px;">{{ device.model }}</div>
+        <div style="font-size:13px; opacity:0.9; margin-top:2px;">S/N: {{ device.device_sn }}</div>
+      </div>
+      <div style="text-align:right;">
+        {% if latest %}
+        <div style="font-size:12.5px; opacity:0.85; font-weight:600; letter-spacing:0.3px;">สถานะล่าสุด</div>
+        <div style="font-size:26px; font-weight:800; margin-top:2px;">{{ status_icons.get(latest.status, '') }} {{ status_labels.get(latest.status, latest.status) }}</div>
+        <div style="font-size:12.5px; opacity:0.9; margin-top:2px;">ตั๋ว #{{ latest.ticket_id }} · แจ้งเมื่อ {{ latest.created_at[:10] }}</div>
+        {% else %}
+        <div style="font-size:15px; opacity:0.9;">ยังไม่มีประวัติการแจ้งซ่อม</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if tickets %}
+  <h2>📋 ประวัติการแจ้งซ่อมทั้งหมด ({{ tickets|length }} รายการ)</h2>
+  {% for t in tickets %}
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div>
+          <span style="font-size:16px; font-weight:800; color:var(--ink);">ตั๋ว #{{ t.ticket_id }}</span>
+          {% if loop.first %}<span class="tag" style="margin-left:6px;">ล่าสุด</span>{% endif %}
+          <div style="font-size:14px; color:var(--ink-soft); margin-top:4px;">{{ t.issue_category or '-' }}</div>
+          {% if t.description %}<div style="font-size:13px; color:var(--muted); margin-top:2px;">{{ t.description }}</div>{% endif %}
+        </div>
+        <span class="badge {{ t.status|replace(' ','-')|replace('/','-') }}" style="font-size:13px; padding:6px 14px;">{{ status_icons.get(t.status, '') }} {{ status_labels.get(t.status, t.status) }}</span>
+      </div>
+
+      <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid var(--border-soft); font-size:13px; color:var(--ink-soft);">
+        <div>📅 วันที่แจ้งซ่อม: <b style="color:var(--ink);">{{ t.created_at[:10] }}</b> เวลา {{ t.created_at[11:16] }} น.</div>
+        {% if t.closed_at %}
+        <div>✅ ปิดงานเมื่อ: <b style="color:var(--ink);">{{ t.closed_at[:10] }}</b> เวลา {{ t.closed_at[11:16] }} น.</div>
+        {% endif %}
+        {% if t.csat_score %}
+        <div>⭐ คะแนนความพึงพอใจ: <b style="color:var(--ink);">{{ t.csat_score }}/5</b></div>
+        {% endif %}
+      </div>
+
+      <ul class="timeline" style="margin-top:12px;">
+        {% for s in statuses %}
+          {% set idx = status_index[t.status] %}
+          <li class="{{ 'done' if loop.index0 < idx else ('current' if loop.index0 == idx else '') }}">
+            {{ status_icons.get(s, '') }} {{ status_labels.get(s, s) }}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+  {% endif %}
+{% endif %}
+{% endblock %}

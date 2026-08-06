@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}แจ้งซ่อมใหม่{% endblock %}
+{% block content %}
+<h1>🛠️ แจ้งซ่อมใหม่ (แทนลูกค้า)</h1>
+<div class="card" style="max-width:700px;">
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+  {% if blocked_reason == "unassigned" %}
+  <p class="warning">บัญชีของคุณยังไม่ได้ถูกกำหนดศูนย์บริการ — กรุณาติดต่อแอดมิน</p>
+  {% elif blocked_reason == "not_repair" %}
+  <p class="warning">ศูนย์บริการของคุณยังไม่เปิดรับซ่อม — กรุณาติดต่อแอดมินเพื่อเปิดสิทธิ์ที่หน้า "ศูนย์บริการ"</p>
+  {% elif blocked_reason == "none_repair" %}
+  <p class="warning">ยังไม่มีศูนย์บริการใดเปิดรับซ่อมในระบบ</p>
+  {% else %}
+  <form method="post" action="/admin/ticket/new" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label>ลูกค้า</label>
+    <div style="display:flex; gap:6px;">
+      <input type="text" id="customer_display" readonly required placeholder="คลิกเพื่อค้นหาลูกค้า..."
+             style="flex:1; cursor:pointer; background:#f7f9fc;" onclick="openCustomerPicker()">
+      <button type="button" class="btn small secondary" onclick="openCustomerPicker()">🔍 ค้นหา</button>
+    </div>
+    <input type="hidden" id="customer_id" name="customer_id">
+    <p class="hint">ยังไม่มีลูกค้ารายนี้ในระบบ? <a href="/admin/customers" target="_blank">เพิ่มลูกค้าใหม่ที่นี่ →</a></p>
+
+    <label>เครื่องพิมพ์</label>
+    <select name="device_sn" id="device_select" required disabled>
+      <option value="">— กรุณาเลือกลูกค้าก่อน —</option>
+    </select>
+    <p class="hint">ไม่พบเครื่องของลูกค้า? <a href="/admin/customers" target="_blank">ลงทะเบียนเครื่องใหม่ที่นี่ →</a></p>
+
+    {% if user.role == 'admin' %}
+    <label>สาขาที่รับผิดชอบงานซ่อม</label>
+    <select name="center_id" required>
+      {% for c in repair_centers %}
+      <option value="{{ c.center_id }}">{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <label>สาขาที่รับผิดชอบงานซ่อม</label>
+    <p style="margin:4px 0 12px;"><b>{{ fixed_center.name }}</b> <span class="hint">(ตามบัญชีของคุณ)</span></p>
+    {% endif %}
+
+    <label>ประเภทปัญหา</label>
+    <select name="issue_category">
+      <option>พิมพ์ไม่ติด</option>
+      <option>เปิดไม่ติด</option>
+      <option>เสียงดัง</option>
+      <option>จอ/หน้าจอเสีย</option>
+      <option>เฟิร์มแวร์/ซอฟต์แวร์</option>
+      <option>อื่นๆ</option>
+    </select>
+    <label>รายละเอียดปัญหา</label>
+    <textarea name="description" rows="4" placeholder="อธิบายอาการที่พบ"></textarea>
+    <label>รูปภาพประกอบ (สูงสุด {{ max_images }} รูป)</label>
+    <input type="file" name="images" accept="image/*" multiple>
+    <label>วิดีโอประกอบ (สูงสุด 1 คลิป ไม่เกิน {{ max_video_mb }} MB)</label>
+    <input type="file" name="video" accept="video/*">
+    <button class="btn" type="submit">บันทึกรายการแจ้งซ่อม</button>
+  </form>
+  {% endif %}
+</div>
+
+<div id="customerPickerOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeCustomerPicker();">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">ค้นหาลูกค้า</h3>
+      <button type="button" class="btn small secondary" onclick="closeCustomerPicker()">ปิด ✕</button>
+    </div>
+    <input type="text" id="customerPickerSearch" oninput="filterCustomerPicker()" placeholder="พิมพ์ชื่อ, เบอร์โทร หรือเลขผู้เสียภาษี เพื่อค้นหา...">
+    <div id="customerPickerResults" style="overflow-y:auto; max-height:50vh; margin-top:10px; border:1px solid var(--border-soft); border-radius:8px;"></div>
+    <p class="hint" style="margin-top:8px; margin-bottom:0;">ทั้งหมด {{ customers|length }} ราย</p>
+  </div>
+</div>
+
+<script>
+  var CUSTOMER_PICKER_CUSTOMERS = {{ customers_for_js|tojson }};
+  var DEVICES_BY_CUSTOMER = {{ devices_by_customer_for_js|tojson }};
+
+  function openCustomerPicker() {
+    document.getElementById('customerPickerOverlay').style.display = 'flex';
+    var search = document.getElementById('customerPickerSearch');
+    search.value = '';
+    renderCustomerPickerResults(CUSTOMER_PICKER_CUSTOMERS);
+    search.focus();
+  }
+
+  function closeCustomerPicker() {
+    document.getElementById('customerPickerOverlay').style.display = 'none';
+  }
+
+  function filterCustomerPicker() {
+    var q = document.getElementById('customerPickerSearch').value.trim().toLowerCase();
+    if (!q) { renderCustomerPickerResults(CUSTOMER_PICKER_CUSTOMERS); return; }
+    var filtered = CUSTOMER_PICKER_CUSTOMERS.filter(function (c) {
+      return c.name.toLowerCase().indexOf(q) !== -1 ||
+             c.phone.toLowerCase().indexOf(q) !== -1 ||
+             c.tax_id.toLowerCase().indexOf(q) !== -1;
+    });
+    renderCustomerPickerResults(filtered);
+  }
+
+  function renderCustomerPickerResults(list) {
+    var container = document.getElementById('customerPickerResults');
+    container.innerHTML = '';
+    if (!list.length) {
+      container.innerHTML = '<div class="picker-empty">ไม่พบลูกค้าที่ตรงกับคำค้นหา</div>';
+      return;
+    }
+    list.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'picker-row';
+      row.onclick = function () { selectCustomer(c.id); };
+      row.innerHTML =
+        '<span class="picker-name">' + c.name + '</span>' +
+        '<span class="picker-meta">' + (c.phone || '-') + '</span>';
+      container.appendChild(row);
+    });
+  }
+
+  function selectCustomer(id) {
+    var c = CUSTOMER_PICKER_CUSTOMERS.find(function (x) { return x.id === id; });
+    if (!c) return;
+    document.getElementById('customer_display').value = c.name + (c.phone ? ' (' + c.phone + ')' : '');
+    document.getElementById('customer_id').value = c.id;
+    closeCustomerPicker();
+    populateDeviceSelect(id);
+  }
+
+  function populateDeviceSelect(customerId) {
+    var sel = document.getElementById('device_select');
+    var devices = DEVICES_BY_CUSTOMER[customerId] || [];
+    if (!devices.length) {
+      sel.innerHTML = '<option value="">— ลูกค้ารายนี้ยังไม่มีเครื่องพิมพ์ในระบบ —</option>';
+      sel.disabled = true;
+      return;
+    }
+    sel.innerHTML = devices.map(function (d) {
+      var label = d.model + ' (' + d.sn + ')' + (d.has_open_ticket ? ' — มีตั๋วซ่อมค้างอยู่ รอซ่อมเสร็จก่อน' : '');
+      return '<option value="' + d.sn + '"' + (d.has_open_ticket ? ' disabled' : '') + '>' + label + '</option>';
+    }).join('');
+    sel.disabled = false;
+  }
+</script>
+{% endblock %}

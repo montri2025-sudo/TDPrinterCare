@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% from "_payment_macros.html" import payment_section %}
+{% block title %}ตั๋ว #{{ t.ticket_id }}{% endblock %}
+{% block content %}
+<a href="/tech/tasks">← กลับไปหน้างานของฉัน</a>
+<h1>ตั๋ว #{{ t.ticket_id }} — {{ t.model }}</h1>
+<div class="card">
+  <p><b>ลูกค้า:</b> {{ t.customer_name }}</p>
+  <p><b>สาขาที่เข้ารับบริการ:</b> {{ t.center_name or '-' }}</p>
+  <p><b>ปัญหา:</b> {{ t.issue_category }}</p>
+  <p><b>รายละเอียด:</b> {{ t.description or '-' }}</p>
+  <p><b>สถานะปัจจุบัน:</b> <span class="badge {{ t.status|replace(' ','-')|replace('/','-') }}">{{ status_labels.get(t.status, t.status) }}</span></p>
+
+  {% if media %}
+  <h2>รูปภาพ/วิดีโอจากลูกค้า</h2>
+  <div class="media-grid">
+    {% for md in media %}
+      {% if md.media_type == 'image' %}
+      <a href="/media/{{ md.ticket_id }}/{{ md.stored_name }}" target="_blank">
+        <img src="/media/{{ md.ticket_id }}/{{ md.stored_name }}" alt="{{ md.filename }}">
+      </a>
+      {% else %}
+      <video controls><source src="/media/{{ md.ticket_id }}/{{ md.stored_name }}"></video>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>อัปเดตสถานะ</h2>
+  <form method="post" action="/tech/ticket/{{ t.ticket_id }}/status">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <select name="status">
+      {% for st in statuses %}
+      <option value="{{ st }}" {% if st == t.status %}selected{% endif %}>{{ status_labels.get(st, st) }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">อัปเดตสถานะ</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>บันทึกผลการซ่อม / เบิกอะไหล่</h2>
+  <form method="post" action="/tech/ticket/{{ t.ticket_id }}/log">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>การดำเนินการ</label>
+    <input type="text" name="action_taken" placeholder="เช่น เปลี่ยนหัวฉีด, อัปเดตเฟิร์มแวร์">
+    <label>ค้นหา/เลือกอะไหล่ที่ใช้ (ถ้ามี — เฉพาะสินค้าหมวด "อะไหล่")</label>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input type="text" id="main_display" readonly value="" placeholder="— ไม่ได้ใช้อะไหล่ — คลิกเพื่อค้นหา —"
+             style="flex:1; min-width:220px; cursor:pointer; background:#f7f9fc;" onclick="openPartPicker('main')">
+      <input type="hidden" name="part_sku_used" id="main_sku" value="">
+      <button type="button" class="btn small secondary" onclick="openPartPicker('main')">🔍 ค้นหาอะไหล่</button>
+      <button type="button" class="btn small secondary" onclick="clearPartSelection('main')">ล้าง</button>
+    </div>
+    <label>จำนวนที่ใช้</label>
+    <input type="number" name="quantity_used" value="0" min="0">
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px;">
+      <input type="checkbox" name="is_claim" value="1" style="width:auto; margin:0;"> 🛡️ เคลมประกัน (ไม่คิดค่าอะไหล่ — ราคาอะไหล่จะเป็น 0 บาทในใบเสนอราคา/ใบแจ้งหนี้)
+    </label>
+    <label>ค่าบริการเปลี่ยนอุปกรณ์ที่เรียกเก็บจริง (บาท)</label>
+    <input type="number" name="labor_fee" value="0" min="0" step="0.01">
+    <label>หมายเหตุช่าง</label>
+    <textarea name="tech_notes" rows="3"></textarea>
+    <button class="btn" type="submit">บันทึก</button>
+  </form>
+  <p class="hint">ค่าบริการอ้างอิงมาตรฐานแสดงในตัวเลือกอะไหล่ด้านบน แต่ช่างปรับตัวเลขที่เรียกเก็บจริงในช่องนี้ได้เสมอ · หากมูลค่าอะไหล่ที่เบิก (ราคา × จำนวน) เกินเกณฑ์ที่กำหนด ระบบจะส่งคำขอไปรออนุมัติจากผู้จัดการก่อนตัดสต็อกอัตโนมัติ (ยกเว้นรายการที่ติ๊กเคลมประกัน — ไม่ต้องรออนุมัติเพราะมูลค่าอะไหล่เป็น 0 บาทเสมอ)</p>
+</div>
+
+<div class="card">
+  <h2>🛠️ บันทึกบำรุงรักษา</h2>
+  <p class="hint" style="margin-top:-6px;">บันทึกงานบำรุงรักษาที่ทำระหว่างเข้าซ่อมเครื่องนี้ ({{ t.device_sn }}) — ใช้คำนวณรอบบำรุงรักษาครั้งถัดไปให้ลูกค้าอัตโนมัติ เหมือนกับที่ลูกค้าบันทึกเองได้</p>
+  <form method="post" action="/tech/ticket/{{ t.ticket_id }}/maintenance">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>งานบำรุงรักษาที่ทำ (ถ้าตรงกับแผนที่มีอยู่ — เลือกได้มากกว่า 1 งาน)</label>
+    {% if maintenance_plan_items %}
+    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;">
+      {% for p in maintenance_plan_items %}
+      <label style="display:flex; align-items:flex-start; gap:6px; font-weight:400;">
+        <input type="checkbox" name="plan_{{ p.plan_item_id }}" value="1" style="width:auto; margin-top:3px;">
+        <span>{{ p.task_name }} <span class="hint">(ทุก {{ p.interval_value }} {{ interval_labels.get(p.interval_type, p.interval_type) }})</span></span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <p class="hint" style="margin-top:0;">ติ๊กงานตามแผนที่ทำจริง (เลือกได้หลายงาน) — ไม่ติ๊กงานไหนเลย = บันทึกอิสระไม่ผูกกับแผนงาน</p>
+    <label>วันที่บำรุงรักษา</label>
+    <input type="date" name="performed_at" value="{{ today }}" required>
+    <label>ชั่วโมงใช้งานสะสมของเครื่อง ณ ตอนนี้ (ไม่บังคับ)</label>
+    <input type="number" name="hours_at_maintenance" min="0" step="0.1"
+           placeholder="ปัจจุบันสะสม {{ '%.0f'|format(t.device_total_usage_hours) }} ชม. (เว้นว่าง = ใช้ค่านี้)">
+    <label>อะไหล่ที่เปลี่ยน (ถ้ามี)</label>
+    <textarea name="parts_replaced" rows="2" placeholder="เช่น หัวฉีด 0.4mm, สายพาน GT2"></textarea>
+    <label>หมายเหตุ</label>
+    <textarea name="notes" rows="2"></textarea>
+    <button class="btn" type="submit">บันทึกบำรุงรักษา</button>
+  </form>
+
+  {% if maintenance_logs %}
+  <h3 style="margin-top:18px;">ประวัติบำรุงรักษาเครื่องนี้ (ล่าสุด)</h3>
+  <table class="sortable">
+    <tr><th>วันที่</th><th>งาน</th><th>ชม.สะสม</th><th>อะไหล่ที่เปลี่ยน</th><th>หมายเหตุ</th></tr>
+    {% for l in maintenance_logs %}
+    <tr>
+      <td>{{ l.performed_at }}</td>
+      <td>{{ l.task_name or "บันทึกอิสระ" }}</td>
+      <td>{{ "%.0f"|format(l.hours_at_maintenance) if l.hours_at_maintenance is not none else "-" }}</td>
+      <td>{{ l.parts_replaced or "-" }}</td>
+      <td>{{ l.notes or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+{% if logs %}
+<div class="card">
+  <h2>ประวัติที่บันทึกไว้</h2>
+  <table class="sortable">
+    <tr>
+      <th>วันที่</th><th>การดำเนินการ</th><th>อะไหล่</th><th>จำนวน</th><th>ค่าบริการ</th>
+      <th>หมายเหตุช่าง</th><th>สถานะอนุมัติ</th><th data-no-sort>จัดการ</th>
+    </tr>
+    {% for l in logs %}
+    <tr data-pair-id="log-edit-row-{{ l.log_id }}">
+      <td>{{ l.created_at }}</td><td>{{ l.action_taken }}</td>
+      <td>{{ part_name_lookup.get(l.part_sku_used, l.part_sku_used) if l.part_sku_used else '-' }}
+        {% if l.part_sku_used and l.is_claim %}<span class="badge" style="background:var(--amber-bg); color:var(--amber-fg);">🛡️ เคลม</span>{% endif %}</td>
+      <td>{{ l.quantity_used }}</td>
+      <td>{{ "%.0f"|format(l.labor_fee) }} บาท</td>
+      <td>{{ l.tech_notes or '-' }}</td>
+      <td>{{ l.approval_status }}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" type="button" onclick="toggleLogEdit({{ l.log_id }})">แก้ไข</button>
+        <form method="post" action="/tech/ticket/{{ t.ticket_id }}/log/{{ l.log_id }}/cancel" style="display:inline;"
+              onsubmit="return confirm('ยกเลิกรายการบันทึกผลการซ่อมนี้? หากเคยตัดสต็อกไปแล้ว ระบบจะคืนสต็อกให้อัตโนมัติ และไม่สามารถกู้คืนได้');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ยกเลิก</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="log-edit-row-{{ l.log_id }}" style="display:none; background:#f7f9fc;">
+      <td colspan="8">
+        <form method="post" action="/tech/ticket/{{ t.ticket_id }}/log/{{ l.log_id }}/edit"
+              style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div><label>การดำเนินการ</label><input type="text" name="action_taken" value="{{ l.action_taken or '' }}" style="width:180px; margin:0;"></div>
+          <div>
+            <label>อะไหล่ที่ใช้</label>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <input type="text" id="log{{ l.log_id }}_display" readonly
+                     value="{{ part_name_lookup.get(l.part_sku_used, l.part_sku_used) if l.part_sku_used else '' }}"
+                     placeholder="— ไม่ได้ใช้อะไหล่ —" style="width:160px; cursor:pointer; background:#f7f9fc; margin:0;"
+                     onclick="openPartPicker('log{{ l.log_id }}')">
+              <input type="hidden" name="part_sku_used" id="log{{ l.log_id }}_sku" value="{{ l.part_sku_used or '' }}">
+              <button type="button" class="btn small secondary" onclick="openPartPicker('log{{ l.log_id }}')">🔍</button>
+              <button type="button" class="btn small secondary" onclick="clearPartSelection('log{{ l.log_id }}')">ล้าง</button>
+            </div>
+          </div>
+          <div><label>จำนวน</label><input type="number" name="quantity_used" value="{{ l.quantity_used }}" min="0" style="width:80px; margin:0;"></div>
+          <div><label>ค่าบริการ (บาท)</label><input type="number" name="labor_fee" value="{{ l.labor_fee }}" min="0" step="0.01" style="width:110px; margin:0;"></div>
+          <div>
+            <label style="display:flex; align-items:center; gap:6px;">
+              <input type="checkbox" name="is_claim" value="1" style="width:auto; margin:0;" {% if l.is_claim %}checked{% endif %}> 🛡️ เคลม
+            </label>
+          </div>
+          <div style="flex:1; min-width:200px;"><label>หมายเหตุช่าง</label><textarea name="tech_notes" rows="2" style="width:100%; margin:0;">{{ l.tech_notes or '' }}</textarea></div>
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleLogEdit({{ l.log_id }})">ยกเลิก</button>
+        </form>
+        <p class="hint" style="margin-top:4px;">แก้ไขอะไหล่/จำนวนแล้วระบบจะคืนสต็อกเดิมและตัดสต็อกใหม่ให้อัตโนมัติ — ถ้ามูลค่าใหม่เกินเกณฑ์ที่กำหนด รายการจะถูกส่งไปรออนุมัติจากผู้จัดการอีกครั้ง</p>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>ใบเสนอราคา</h2>
+  {% if quotes %}
+  {% for q in quotes %}
+  <div class="card" style="background:#fafbfe;">
+    <b>ใบเสนอราคา #{{ q.quote_id }}</b> — {{ q.created_at }}
+    <table class="sortable">
+      <tr><th>รายการ</th><th>จำนวน</th><th>ราคา/หน่วย</th><th>รวม</th><th>หมายเหตุช่าง</th></tr>
+      {% for it in q.line_items %}
+      <tr><td>{{ it.description }}</td><td>{{ it.quantity }}</td><td>{{ "%.0f"|format(it.unit_price) }}</td><td>{{ "%.0f"|format(it.quantity * it.unit_price) }}</td><td>{{ it.tech_notes or '-' }}</td></tr>
+      {% endfor %}
+    </table>
+    <p style="text-align:right;"><b>รวมทั้งสิ้น: {{ "%.0f"|format(q.total) }} บาท</b></p>
+    {% if q.notes %}<p class="hint">หมายเหตุ: {{ q.notes }}</p>{% endif %}
+    <p style="text-align:right; display:flex; gap:8px; justify-content:flex-end;">
+      <a href="/quote/{{ q.quote_id }}/print" target="_blank" class="btn small secondary">🖨️ พิมพ์ / PDF</a>
+      <form method="post" action="/quote/{{ q.quote_id }}/cancel" style="display:inline;"
+            onsubmit="return confirm('ยกเลิกใบเสนอราคา #{{ q.quote_id }} นี้? ลบแล้วกู้คืนไม่ได้');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="/tech/ticket/{{ t.ticket_id }}">
+        <button class="btn small danger" type="submit">ยกเลิกใบเสนอราคานี้</button>
+      </form>
+    </p>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="hint">ยังไม่มีใบเสนอราคาสำหรับตั๋วนี้</p>
+  {% endif %}
+  <a href="/tech/ticket/{{ t.ticket_id }}/quote/new" class="btn">+ ออกใบเสนอราคาใหม่</a>
+</div>
+
+{% if t.status == 'Resolved/Closed' %}
+<div class="card">
+  <h2>🧾 ใบแจ้งหนี้ลูกค้า</h2>
+  {% if invoice_items %}
+  <table class="sortable">
+    <tr><th>วันที่</th><th>รายการซ่อม</th><th>อะไหล่</th><th>ค่าอะไหล่</th><th>ค่าบริการ</th><th>รวม</th><th>หมายเหตุช่าง</th></tr>
+    {% for it in invoice_items %}
+    <tr>
+      <td>{{ it.created_at }}</td><td>{{ it.action }}</td>
+      <td>{{ it.part_name or '-' }}{% if it.is_claim %} <span class="badge" style="background:var(--amber-bg); color:var(--amber-fg);">🛡️ เคลม</span>{% endif %}</td>
+      <td>{{ "%.0f"|format(it.part_cost) }}</td><td>{{ "%.0f"|format(it.labor_fee) }}</td>
+      <td>{{ "%.0f"|format(it.line_total) }}</td><td>{{ it.tech_notes or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p style="text-align:right; font-size:18px;"><b>ยอดรวมสุทธิ: {{ "%.0f"|format(invoice_total) }} บาท</b></p>
+  <p style="text-align:right;"><a href="/ticket/{{ t.ticket_id }}/invoice/print" target="_blank" class="btn small secondary">🖨️ ดาวน์โหลด PDF</a></p>
+  {% else %}
+  <p class="hint">ไม่มีค่าใช้จ่ายในการซ่อมนี้</p>
+  {% endif %}
+  <form method="post" action="/tech/ticket/{{ t.ticket_id }}/status" style="text-align:right;"
+        onsubmit="return confirm('ยกเลิกใบแจ้งหนี้และเปิดงานนี้อีกครั้ง? สถานะตั๋วจะกลับไปเป็น กำลังซ่อม และใบแจ้งหนี้จะหายไปจนกว่าจะปิดงานใหม่');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="status" value="In Repair">
+    <button class="btn small danger" type="submit">ยกเลิกใบแจ้งหนี้ (เปิดงานอีกครั้ง)</button>
+  </form>
+</div>
+
+{{ payment_section(t, payments, true, csrf_token) }}
+{% endif %}
+
+<div id="partPickerOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closePartPicker();">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">ค้นหาอะไหล่ที่ใช้</h3>
+      <button type="button" class="btn small secondary" onclick="closePartPicker()">ปิด ✕</button>
+    </div>
+    <input type="text" id="partPickerSearch" oninput="filterPartPicker()" placeholder="พิมพ์ชื่ออะไหล่หรือรหัส SKU เพื่อค้นหา...">
+    <div id="partPickerResults" style="overflow-y:auto; max-height:50vh; margin-top:10px; border:1px solid var(--border-soft); border-radius:8px;"></div>
+    <p class="hint" style="margin-top:8px; margin-bottom:0;">ทั้งหมด {{ parts|length }} รายการ — แสดงเฉพาะสินค้าหมวด "อะไหล่" เท่านั้น (ไม่รวมเครื่องพิมพ์/วัสดุพิมพ์/อื่นๆ)</p>
+  </div>
+</div>
+
+<script>
+  function toggleLogEdit(logId) {
+    var row = document.getElementById('log-edit-row-' + logId);
+    if (row) { row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
+  }
+
+  var PART_PICKER_PARTS = {{ parts_for_js|tojson }};
+  var partPickerTarget = null;
+
+  function fmtBaht(n) {
+    return (n || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 }) + ' บาท';
+  }
+
+  function openPartPicker(targetPrefix) {
+    partPickerTarget = targetPrefix;
+    document.getElementById('partPickerOverlay').style.display = 'flex';
+    var search = document.getElementById('partPickerSearch');
+    search.value = '';
+    renderPartPickerResults(PART_PICKER_PARTS);
+    search.focus();
+  }
+
+  function closePartPicker() {
+    document.getElementById('partPickerOverlay').style.display = 'none';
+    partPickerTarget = null;
+  }
+
+  function filterPartPicker() {
+    var q = document.getElementById('partPickerSearch').value.trim().toLowerCase();
+    if (!q) { renderPartPickerResults(PART_PICKER_PARTS); return; }
+    var filtered = PART_PICKER_PARTS.filter(function (p) {
+      return p.name.toLowerCase().indexOf(q) !== -1 || p.sku.toLowerCase().indexOf(q) !== -1;
+    });
+    renderPartPickerResults(filtered);
+  }
+
+  function renderPartPickerResults(list) {
+    var container = document.getElementById('partPickerResults');
+    container.innerHTML = '';
+    if (!list.length) {
+      container.innerHTML = '<div class="picker-empty">ไม่พบอะไหล่ที่ตรงกับคำค้นหา</div>';
+      return;
+    }
+    list.forEach(function (p) {
+      var row = document.createElement('div');
+      row.className = 'picker-row';
+      row.onclick = function () { selectPart(p.sku); };
+      row.innerHTML =
+        '<span class="picker-name">' + p.name + ' <span class="hint">(' + p.sku + ')</span></span>' +
+        '<span class="picker-meta">คงเหลือ ' + p.stock + ' · ' + fmtBaht(p.cost) + ' (ค่าบริการมาตรฐาน ' + fmtBaht(p.labor) + ')</span>';
+      container.appendChild(row);
+    });
+  }
+
+  function selectPart(sku) {
+    if (!partPickerTarget) return;
+    var part = PART_PICKER_PARTS.find(function (p) { return p.sku === sku; });
+    if (!part) return;
+    document.getElementById(partPickerTarget + '_display').value = part.label;
+    document.getElementById(partPickerTarget + '_sku').value = part.sku;
+    closePartPicker();
+  }
+
+  function clearPartSelection(targetPrefix) {
+    document.getElementById(targetPrefix + '_display').value = '';
+    document.getElementById(targetPrefix + '_sku').value = '';
+  }
+</script>
+{% endblock %}

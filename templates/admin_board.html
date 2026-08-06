@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Kanban Board{% endblock %}
+{% block content %}
+<h1>🗂️ Kanban Board</h1>
+<div class="card">
+  <form method="get" action="/admin/board" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+    <div><label>ตั้งแต่วันที่</label><input type="date" name="from" value="{{ date_from }}"></div>
+    <div><label>ถึงวันที่</label><input type="date" name="to" value="{{ date_to }}"></div>
+    <button class="btn" type="submit">แสดง</button>
+    <a href="/admin/board" class="btn small secondary">เดือนนี้ (ค่าเริ่มต้น)</a>
+  </form>
+  <p class="hint" style="margin-top:8px;">แสดงตั๋วซ่อมที่แจ้งระหว่างวันที่ {{ date_from }} ถึง {{ date_to }} — ค่าเริ่มต้นคือเดือนปัจจุบัน นับตามวันที่แจ้งซ่อม (created_at)</p>
+</div>
+<div class="kanban">
+  {% for s in statuses %}
+  <div class="kanban-col">
+    <h3>{{ status_labels.get(s, s) }} ({{ board[s]|length }})</h3>
+    {% for t in board[s] %}
+    <div class="kcard">
+      <b>#{{ t.ticket_id }} — {{ t.model }}</b>
+      {{ t.customer_name }}<br>
+      <span class="tag">{{ t.issue_category }}</span><br>
+      สาขา: {{ t.center_name or '-' }}<br>
+      ช่าง: {{ t.tech_name or '— ยังไม่มอบหมาย —' }}
+      <form method="post" action="/admin/ticket/{{ t.ticket_id }}/update" style="margin-top:8px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <select name="status" style="margin:4px 0;">
+          {% for st in statuses %}
+          <option value="{{ st }}" {% if st == t.status %}selected{% endif %}>{{ status_labels.get(st, st) }}</option>
+          {% endfor %}
+        </select>
+        <select name="assigned_tech_id" style="margin:4px 0;">
+          <option value="">— ไม่มอบหมาย —</option>
+          {% for tech in techs %}
+          <option value="{{ tech.user_id }}" {% if tech.user_id == t.assigned_tech_id %}selected{% endif %}>{{ tech.name }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn small" type="submit">อัปเดต</button>
+      </form>
+      <a href="/admin/ticket/{{ t.ticket_id }}" class="btn small secondary" style="margin-top:6px;">ดูรายละเอียด/รูปภาพ</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

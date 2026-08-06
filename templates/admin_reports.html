@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}รายงาน{% endblock %}
+{% block content %}
+<h1>📊 รายงาน</h1>
+
+<div class="card">
+  <form method="get" action="/admin/reports" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+    <div><label>ตั้งแต่วันที่</label><input type="date" name="from" value="{{ from_display }}"></div>
+    <div><label>ถึงวันที่</label><input type="date" name="to" value="{{ to_display }}"></div>
+    {% if not is_manager %}
+    <div>
+      <label>ศูนย์บริการ</label>
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="reportCenterDisplay" readonly placeholder="🔽 ทุกศูนย์บริการ — คลิกเพื่อค้นหา"
+               value="{{ selected_center_name or '' }}" style="flex:1; min-width:200px; cursor:pointer; background:#f7f9fc;"
+               onclick="openReportCenterPicker()">
+        <button type="button" class="btn small secondary" onclick="openReportCenterPicker()">🔍 ค้นหา</button>
+      </div>
+      <input type="hidden" id="reportCenterId" name="center_id" value="{{ selected_center_id or '' }}">
+    </div>
+    {% endif %}
+    <button class="btn" type="submit">แสดงรายงาน</button>
+    <button class="btn small secondary" type="button" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+  </form>
+  <p class="hint" style="margin-top:8px;">แสดงข้อมูลระหว่างวันที่ {{ from_display }} ถึง {{ to_display }} — ตั๋วซ่อมนับตามวันที่แจ้งซ่อม (created_at), ตั๋วที่ปิดแล้ว/ค่าแรง/อะไหล่ที่เบิก นับตามวันที่ปิดงาน/บันทึกจริงในช่วงนี้{% if not is_manager %} — คลิกช่องศูนย์บริการเพื่อค้นหาได้ (มีศูนย์บริการทั้งหมด {{ all_centers|length }} แห่ง){% endif %}</p>
+</div>
+
+{% if not is_manager %}
+<div id="reportCenterPickerOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeReportCenterPicker();">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">ค้นหาศูนย์บริการ</h3>
+      <button type="button" class="btn small secondary" onclick="closeReportCenterPicker()">ปิด ✕</button>
+    </div>
+    <input type="text" id="reportCenterPickerSearch" oninput="filterReportCenterPicker()" placeholder="พิมพ์ชื่อศูนย์บริการเพื่อค้นหา...">
+    <div id="reportCenterPickerResults" style="overflow-y:auto; max-height:50vh; margin-top:10px; border:1px solid var(--border-soft); border-radius:8px;"></div>
+    <p class="hint" style="margin-top:8px; margin-bottom:0;">ทั้งหมด {{ all_centers|length }} ศูนย์</p>
+  </div>
+</div>
+
+<script>
+  var REPORT_CENTER_PICKER_CENTERS = {{ centers_for_js|tojson }};
+
+  function openReportCenterPicker() {
+    document.getElementById('reportCenterPickerOverlay').style.display = 'flex';
+    var search = document.getElementById('reportCenterPickerSearch');
+    search.value = '';
+    renderReportCenterPickerResults(REPORT_CENTER_PICKER_CENTERS);
+    search.focus();
+  }
+
+  function closeReportCenterPicker() {
+    document.getElementById('reportCenterPickerOverlay').style.display = 'none';
+  }
+
+  function filterReportCenterPicker() {
+    var q = document.getElementById('reportCenterPickerSearch').value.trim().toLowerCase();
+    if (!q) { renderReportCenterPickerResults(REPORT_CENTER_PICKER_CENTERS); return; }
+    var filtered = REPORT_CENTER_PICKER_CENTERS.filter(function (c) {
+      return c.name.toLowerCase().indexOf(q) !== -1;
+    });
+    renderReportCenterPickerResults(filtered);
+  }
+
+  function renderReportCenterPickerResults(list) {
+    var container = document.getElementById('reportCenterPickerResults');
+    container.innerHTML = '';
+    var allRow = document.createElement('div');
+    allRow.className = 'picker-row';
+    allRow.onclick = function () { selectReportCenter(null, ''); };
+    allRow.innerHTML = '<span class="picker-name">— ทุกศูนย์บริการ —</span>';
+    container.appendChild(allRow);
+    if (!list.length) {
+      var empty = document.createElement('div');
+      empty.className = 'picker-empty';
+      empty.textContent = 'ไม่พบศูนย์บริการที่ตรงกับคำค้นหา';
+      container.appendChild(empty);
+      return;
+    }
+    list.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'picker-row';
+      row.onclick = function () { selectReportCenter(c.id, c.name); };
+      row.innerHTML = '<span class="picker-name">' + c.name + '</span>';
+      container.appendChild(row);
+    });
+  }
+
+  function selectReportCenter(id, name) {
+    document.getElementById('reportCenterDisplay').value = id ? name : '';
+    document.getElementById('reportCenterId').value = id || '';
+    closeReportCenterPicker();
+  }
+</script>
+{% endif %}
+
+<p class="hint" style="margin-top:-4px;">👆 คลิกที่การ์ดเพื่อดูรายการที่ประกอบเป็นยอดนั้น</p>
+<div class="grid">
+  <div class="card stat clickable" onclick='openReportSummary("tickets", {{ "🎫 ตั๋วที่แจ้งซ่อมในช่วงนี้"|tojson }})'>
+    <div class="stat-icon">🎫</div>
+    <div class="num">{{ total_tickets }}</div>
+    <div class="label">ตั๋วที่แจ้งซ่อมในช่วงนี้</div>
+  </div>
+  <div class="card stat clickable" onclick='openReportSummary("closed", {{ "✅ ตั๋วที่ปิดงานแล้ว"|tojson }})'>
+    <div class="stat-icon">✅</div>
+    <div class="num">{{ total_closed }}</div>
+    <div class="label">ตั๋วที่ปิดงานแล้ว</div>
+  </div>
+  <div class="card stat clickable" onclick='openReportSummary("labor", {{ "🧰 ยอดค่าแรงรวม"|tojson }})'>
+    <div class="stat-icon">🧰</div>
+    <div class="num">{{ "%.0f"|format(total_labor) }}</div>
+    <div class="label">ยอดค่าแรงรวม (บาท)</div>
+  </div>
+  <div class="card stat clickable" onclick='openReportSummary("parts", {{ "🔩 มูลค่าอะไหล่ที่เบิก"|tojson }})'>
+    <div class="stat-icon">🔩</div>
+    <div class="num">{{ "%.0f"|format(total_parts_cost) }}</div>
+    <div class="label">มูลค่าอะไหล่ที่เบิก (บาท)</div>
+  </div>
+  <div class="card stat clickable" onclick='openReportSummary("sales", {{ "🛒 ยอดขายสินค้ารวม"|tojson }})'>
+    <div class="stat-icon">🛒</div>
+    <div class="num">{{ "%.0f"|format(total_sales_revenue) }}</div>
+    <div class="label">ยอดขายสินค้ารวม (บาท)</div>
+  </div>
+  <div class="card stat clickable" onclick='openReportSummary("sales", {{ "🤝 ค่าคอมมิชชั่นจากการขายรวม"|tojson }})'>
+    <div class="stat-icon">🤝</div>
+    <div class="num">{{ "%.0f"|format(total_sales_commission) }}</div>
+    <div class="label">ค่าคอมมิชชั่นจากการขายรวม (บาท)</div>
+  </div>
+</div>
+
+<div id="reportSummaryOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeReportSummary();">
+  <div class="modal-box" style="max-width:680px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;" id="rsTitle"></h3>
+      <button type="button" class="btn small secondary" onclick="closeReportSummary()">ปิด ✕</button>
+    </div>
+    <div id="rsBody" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<script>
+  var REPORT_SUMMARY = {{ report_summary_for_js|tojson }};
+  function fmtReportBaht(n) { return (n || 0).toLocaleString('th-TH', {maximumFractionDigits: 2}); }
+
+  function openReportSummary(kind, title) {
+    var data = REPORT_SUMMARY[kind] || [];
+    document.getElementById('rsTitle').textContent = title + ' (' + data.length + ' รายการ)';
+    var body = document.getElementById('rsBody');
+    if (!data.length) {
+      body.innerHTML = '<p class="hint">ไม่มีรายการในช่วงเวลานี้</p>';
+    } else if (kind === 'tickets') {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
+            r.customer_name + '</td><td>' + r.model + '</td><td>' + r.status_label + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    } else if (kind === 'closed') {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>วันที่ปิดงาน</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
+            r.customer_name + '</td><td>' + r.model + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    } else if (kind === 'labor') {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ช่าง</th><th>รุ่นเครื่อง</th><th>รายการ</th><th>ค่าแรง (บาท)</th><th>วันที่</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
+            r.tech_name + '</td><td>' + r.model + '</td><td>' + r.action + '</td><td>' +
+            fmtReportBaht(r.fee) + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    } else if (kind === 'parts') {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>SKU</th><th>ชื่ออะไหล่</th><th>รุ่นเครื่อง</th><th>จำนวน</th><th>มูลค่า (บาท)</th><th>วันที่</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
+            r.part_sku + '</td><td>' + r.part_name + '</td><td>' + r.model + '</td><td>' + r.qty + '</td><td>' +
+            fmtReportBaht(r.cost) + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    } else if (kind === 'sales') {
+      body.innerHTML = '<table class="sortable"><tr><th>บิล</th><th>พนักงานขาย</th><th>สินค้า</th><th>จำนวน</th><th>ยอดขาย (บาท)</th><th>ค่าคอม (บาท)</th><th>วันที่</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td><a href="/sales/order/' + r.order_id + '">#' + r.order_id + '</a></td><td>' +
+            r.sold_by + '</td><td>' + r.part_name + '</td><td>' + r.qty + '</td><td>' +
+            fmtReportBaht(r.revenue) + '</td><td>' + fmtReportBaht(r.commission) + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    }
+    document.getElementById('reportSummaryOverlay').style.display = 'flex';
+  }
+  function closeReportSummary() {
+    document.getElementById('reportSummaryOverlay').style.display = 'none';
+  }
+</script>
+
+<h2>🔧 ช่างซ่อม — จำนวนเคสและค่าแรง</h2>
+<p class="hint" style="margin-top:-8px;">คลิกที่ตัวเลขเพื่อดูรายการเคสของแต่ละช่าง</p>
+<div class="card">
+  {% if tech_rows %}
+  <table class="sortable">
+    <tr><th>ช่าง</th><th>เคสที่ได้รับมอบหมาย</th><th>เคสที่ปิดงานแล้ว</th><th>ยอดค่าแรงรวม (บาท)</th></tr>
+    {% for r in tech_rows %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td><a href="#" class="tech-case-link" onclick='openTechCases({{ r.user_id }}, {{ r.name|tojson }}, "assigned"); return false;'>🎫 {{ r.assigned_count }}</a></td>
+      <td><a href="#" class="tech-case-link" onclick='openTechCases({{ r.user_id }}, {{ r.name|tojson }}, "closed"); return false;'>✅ {{ r.closed_count }}</a></td>
+      <td><a href="#" class="tech-case-link" onclick='openTechCases({{ r.user_id }}, {{ r.name|tojson }}, "labor"); return false;'>🧰 {{ "%.0f"|format(r.labor_total) }}</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีช่างในระบบ</p>
+  {% endif %}
+</div>
+
+<div id="techCasesOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeTechCases();">
+  <div class="modal-box" style="max-width:560px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;" id="tcTitle"></h3>
+      <button type="button" class="btn small secondary" onclick="closeTechCases()">ปิด ✕</button>
+    </div>
+    <div id="tcBody" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<script>
+  var TECH_CASES = {{ tech_cases_for_js|tojson }};
+  var STATUS_ICONS = {{ status_icons|tojson }};
+  function fmtBaht(n) { return (n || 0).toLocaleString('th-TH', {maximumFractionDigits: 2}); }
+  function openTechCases(userId, techName, kind) {
+    var data = (TECH_CASES[userId] || {})[kind] || [];
+    var titles = {assigned: 'เคสที่ได้รับมอบหมาย', closed: 'เคสที่ปิดงานแล้ว', labor: 'รายการค่าแรง'};
+    document.getElementById('tcTitle').textContent = techName + ' — ' + titles[kind];
+    var body = document.getElementById('tcBody');
+    if (!data.length) {
+      body.innerHTML = '<p class="hint">ไม่มีรายการในช่วงเวลานี้</p>';
+    } else if (kind === 'assigned') {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td>#' + r.ticket_id + '</td><td>' + r.model + '</td><td>' +
+            (STATUS_ICONS[r.status] || '') + ' ' + r.status_label + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    } else if (kind === 'closed') {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>วันที่ปิดงาน</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td>#' + r.ticket_id + '</td><td>' + r.model + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    } else {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>รายการ</th><th>ค่าแรง (บาท)</th><th>วันที่</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td>#' + r.ticket_id + '</td><td>' + r.model + '</td><td>' + (r.action || '-') +
+            '</td><td>' + fmtBaht(r.fee) + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    }
+    document.getElementById('techCasesOverlay').style.display = 'flex';
+  }
+  function closeTechCases() {
+    document.getElementById('techCasesOverlay').style.display = 'none';
+  }
+</script>
+
+<h2>📍 ปริมาณการซ่อมแยกตามศูนย์บริการ</h2>
+<div class="card">
+  {% if center_rows %}
+  <table class="sortable">
+    <tr><th>ศูนย์บริการ</th><th>ตั๋วทั้งหมดในช่วงนี้</th><th>ปิดงานแล้ว</th></tr>
+    {% for r in center_rows %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td>{{ r.total_tickets }}</td>
+      <td>{{ r.closed_tickets or 0 }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีศูนย์บริการในระบบ</p>
+  {% endif %}
+</div>
+
+<h2>🔩 ปริมาณการเบิกอะไหล่</h2>
+<div class="card">
+  {% if part_rows %}
+  <table class="sortable">
+    <tr><th>SKU</th><th>ชื่ออะไหล่</th><th>จำนวนที่เบิกในช่วงนี้</th><th>มูลค่ารวม (บาท)</th></tr>
+    {% for r in part_rows %}
+    <tr>
+      <td>{{ r.part_sku }}</td>
+      <td>{{ r.part_name }}</td>
+      <td>{{ r.total_qty or 0 }}</td>
+      <td>{{ "%.0f"|format(r.total_cost or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีอะไหล่ในระบบ</p>
+  {% endif %}
+</div>
+
+<h2>💰 ยอดขายสินค้าและค่าคอมมิชชั่น แยกตามพนักงานขาย</h2>
+<div class="card">
+  {% if sales_rows %}
+  <table class="sortable">
+    <tr>
+      <th>พนักงาน</th>
+      {% if sales_rows[0].center_name is defined %}<th>ศูนย์บริการ</th>{% endif %}
+      <th>จำนวนบิล</th><th>ยอดขายรวม (บาท)</th><th>ค่าคอมมิชชั่นรวม (บาท)</th>
+    </tr>
+    {% for r in sales_rows %}
+    <tr>
+      <td>{{ r.name }}</td>
+      {% if r.center_name is defined %}<td>{{ r.center_name }}</td>{% endif %}
+      <td>{{ r.order_count }}</td>
+      <td>{{ "%.0f"|format(r.revenue or 0) }}</td>
+      <td>{{ "%.0f"|format(r.commission or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีรายการขายในช่วงเวลานี้</p>
+  {% endif %}
+</div>
+
+<h2>📊 ยอดขายสินค้าแยกตามศูนย์บริการ</h2>
+<div class="card">
+  {% if center_chart_labels %}
+  <canvas id="centerSalesChart" style="max-height:320px;"></canvas>
+  {% else %}
+  <p class="hint">ยังไม่มีศูนย์บริการในระบบ</p>
+  {% endif %}
+</div>
+
+{% if center_chart_labels %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+  new Chart(document.getElementById('centerSalesChart'), {
+    type: 'bar',
+    data: {
+      labels: {{ center_chart_labels|tojson }},
+      datasets: [{
+        label: 'ยอดขายสินค้ารวม (บาท)',
+        data: {{ center_chart_values|tojson }},
+        backgroundColor: '#e67e22'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+</script>
+{% endif %}
+
+<h2>🧾 รายงานรายการซ่อมแยกตามใบแจ้งหนี้</h2>
+<p class="hint" style="margin-top:-8px;">แต่ละแถว = ตั๋วที่ปิดงานแล้ว 1 ใบ นับตามวันที่ปิดงานในช่วงที่เลือกด้านบน (ปรับช่วงวันที่ได้จากฟอร์มด้านบนสุดของหน้า) — คลิกที่แถวเพื่อดูรายการซ่อมย่อยทั้งหมดของใบนั้น · แถวสีเขียวคือใบที่ลงบันทึกบัญชีแล้ว</p>
+<div class="card">
+  <div style="margin-bottom:10px;">
+    <input type="text" placeholder="🔍 ค้นหาชื่อลูกค้า / เลขที่ใบแจ้งหนี้ / รุ่น / ช่าง" data-search-for="repairInvoiceTable" autocomplete="off" style="max-width:360px;">
+  </div>
+  {% if repair_invoices %}
+  <table class="sortable" id="repairInvoiceTable">
+    <tr>
+      <th>เลขที่ใบแจ้งหนี้</th><th>วันที่</th><th>ชื่อลูกค้า</th><th>รุ่น</th>
+      <th>สถานะประกัน</th><th>ช่าง</th><th>ยอดรวมสุทธิ (บาท)</th>
+    </tr>
+    {% for inv in repair_invoices %}
+    <tr onclick='openRepairInvoiceDetail({{ inv.ticket_id }})' {% if inv.invoice_recorded %}style="background:#e8f5e9;"{% endif %}>
+      <td>{{ inv.ticket_id }}</td>
+      <td>{{ inv.closed_at }}</td>
+      <td>{{ inv.customer_name }}</td>
+      <td>{{ inv.model }}</td>
+      <td>
+        {% if inv.claim_status == 'all' %}<span class="tag" style="background:#e8f5e9; color:#2e7d32;">✅ ในประกันทั้งใบ</span>
+        {% elif inv.claim_status == 'partial' %}<span class="tag" style="background:#fff3e0; color:#e65100;">◐ ในประกันบางส่วน</span>
+        {% else %}<span class="hint">— ไม่มี —</span>{% endif %}
+      </td>
+      <td>{{ inv.tech_name }}</td>
+      <td>{{ "%.0f"|format(inv.total) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีใบแจ้งหนี้ (ตั๋วที่ปิดงานแล้วและมีรายการซ่อม) ในช่วงเวลานี้</p>
+  {% endif %}
+</div>
+
+<div id="repairInvoiceOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeRepairInvoiceDetail();">
+  <div class="modal-box" style="max-width:720px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:10px;">
+      <div>
+        <h3 style="margin:0;" id="riTitle"></h3>
+        <div class="hint" id="riSubtitle" style="margin-top:2px;"></div>
+      </div>
+      <button type="button" class="btn small secondary" onclick="closeRepairInvoiceDetail()">ปิด ✕</button>
+    </div>
+    <div id="riBody" style="max-height:60vh; overflow-y:auto;"></div>
+    <form method="post" id="riRecordForm" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-soft); display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="from" value="{{ from_display }}">
+      <input type="hidden" name="to" value="{{ to_display }}">
+      <input type="hidden" name="center_id" value="{{ selected_center_id or '' }}">
+      <label style="display:flex; align-items:center; gap:6px; margin:0;">
+        <input type="checkbox" name="recorded" id="riRecordedCheckbox" style="width:auto; margin:0;"> ลงบันทึกแล้ว
+      </label>
+      <span class="hint" id="riRecordedInfo"></span>
+      <button class="btn small" type="submit">💾 บันทึกรายการ</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  var REPAIR_INVOICES = {{ repair_invoices|tojson }};
+  var REPAIR_INVOICES_BY_ID = {};
+  REPAIR_INVOICES.forEach(function (inv) { REPAIR_INVOICES_BY_ID[inv.ticket_id] = inv; });
+
+  function openRepairInvoiceDetail(ticketId) {
+    var inv = REPAIR_INVOICES_BY_ID[ticketId];
+    if (!inv) return;
+    document.getElementById('riTitle').textContent = 'ใบแจ้งหนี้ #' + inv.ticket_id + ' — ' + inv.model + ' — ' + inv.customer_name;
+    document.getElementById('riSubtitle').textContent = 'วันที่ปิดงาน: ' + inv.closed_at + ' · ช่างผู้รับผิดชอบ: ' + inv.tech_name;
+    document.getElementById('riRecordForm').action = '/admin/reports/repair-invoice/' + inv.ticket_id + '/recorded';
+    document.getElementById('riRecordedCheckbox').checked = !!inv.invoice_recorded;
+    document.getElementById('riRecordedInfo').textContent = inv.invoice_recorded
+      ? ('บันทึกโดย ' + (inv.invoice_recorded_by_name || '-') + ' เมื่อ ' + (inv.invoice_recorded_at || '-'))
+      : '';
+    var rows = inv.log_items.map(function (it) {
+      return '<tr><td>' + it.created_at + '</td><td>' + it.action + '</td><td>' + (it.part_name || '—') +
+        '</td><td>' + fmtReportBaht(it.part_cost) + '</td><td>' + fmtReportBaht(it.labor_fee) + '</td><td>' +
+        (it.is_claim ? '<span class="tag" style="background:#e8f5e9; color:#2e7d32;">✅ ในประกัน</span>' : '<span class="hint">—</span>') +
+        '</td><td>' + fmtReportBaht(it.line_total) + '</td></tr>';
+    }).join('');
+    document.getElementById('riBody').innerHTML =
+      '<table class="sortable"><tr><th>วันที่</th><th>รายการซ่อม</th><th>อะไหล่</th><th>ค่าอะไหล่ (บาท)</th>' +
+      '<th>ค่าบริการ (บาท)</th><th>อยู่ในประกัน</th><th>ยอดรวม (บาท)</th></tr>' + rows + '</table>' +
+      '<p style="text-align:right; margin:10px 4px 0; font-size:16px;"><strong>ยอดรวมสุทธิ: ' + fmtReportBaht(inv.total) + ' บาท</strong></p>' +
+      '<p style="margin:8px 4px 0;"><a href="/admin/ticket/' + inv.ticket_id + '">🔗 เปิดหน้าตั๋วซ่อมนี้</a></p>';
+    document.getElementById('repairInvoiceOverlay').style.display = 'flex';
+  }
+
+  function closeRepairInvoiceDetail() {
+    document.getElementById('repairInvoiceOverlay').style.display = 'none';
+  }
+</script>
+{% endblock %}
