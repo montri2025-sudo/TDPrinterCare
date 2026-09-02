@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ใบเสนอราคา — บิลขาย #{{ order.order_id }}</title>
+<style>
+  body { font-family: "Tahoma", "Segoe UI", sans-serif; color: #222; max-width: 800px; margin: 40px auto; padding: 0 20px; position: relative; }
+  .watermark { position: absolute; top: 260px; left: 50%; transform: translateX(-50%); width: 420px;
+               opacity: 0.05; filter: grayscale(1); z-index: -1; pointer-events: none; }
+  .no-print { margin-bottom: 24px; }
+  .btn { background: #2e5395; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
+  .header h1 { font-size: 34px; margin: 0; color: #111; }
+  .header img.logo { height: 80px; width: auto; }
+  .field-row { display: flex; gap: 24px; margin-bottom: 6px; flex-wrap: wrap; }
+  .field-line { margin-bottom: 6px; font-size: 14px; }
+  .field-line label { color: #555; margin-right: 6px; }
+  .underline { border-bottom: 1px solid #999; display: inline-block; min-width: 220px; padding: 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 10px; font-size: 14px; text-align: left; }
+  th { background: #f5f5f5; }
+  td.num, th.num { text-align: right; }
+  .summary-row td { font-weight: bold; }
+  .summary-row.grand td { font-size: 16px; }
+  .bottom { display: flex; justify-content: space-between; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+  .pay-box, .contact-box { font-size: 13px; margin-bottom: 16px; }
+  .pay-box h4, .contact-box h4 { margin: 0 0 6px 0; font-size: 14px; color: #1f3864; }
+  .pay-box p, .contact-box p { margin: 2px 0; line-height: 1.5; }
+  .sign-box { text-align: center; min-width: 220px; }
+  .sign-line { border-top: 1px solid #888; margin-top: 56px; padding-top: 6px; font-size: 13px; }
+  .hint-note { font-size: 11px; color: #888; margin-top: 28px; }
+  @media print { .no-print { display: none; } body { margin: 0; } }
+</style>
+</head>
+<body>
+  <img class="watermark" src="/static/logo-tdprinter.png" alt="">
+
+  <div class="no-print">
+    <button class="btn" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+    <p style="font-size:12px; color:#666;">กดปุ่มนี้ แล้วในหน้าต่างพิมพ์ เลือกปลายทางเป็น “Save as PDF” เพื่อบันทึกไฟล์ PDF</p>
+  </div>
+
+  <div class="header">
+    <h1>ใบเสนอราคา</h1>
+    <img class="logo" src="/static/logo-tdprinter.png" alt="TDPrinter By Deenaja">
+  </div>
+
+  <div class="field-row">
+    <div class="field-line"><label>ชื่อลูกค้า:</label> <span class="underline">{{ customer.name }}</span></div>
+    <div class="field-line"><label>วันที่:</label> <span class="underline">{{ order.created_at }}</span></div>
+  </div>
+  <div class="field-line"><label>เลขผู้เสียภาษี:</label> <span class="underline">{{ customer.tax_id or '-' }}</span></div>
+  <div class="field-line"><label>ที่อยู่:</label> <span class="underline" style="min-width:400px;">{{ customer.address or '-' }}</span></div>
+  <div class="field-line"><label>บิลขายเลขที่:</label> #{{ order.order_id }} — สาขา {{ order.center_name }}</div>
+
+  <table>
+    <tr><th>รายการ</th><th class="num" style="width:70px;">จำนวน</th><th class="num" style="width:110px;">ราคา/หน่วย</th><th class="num" style="width:120px;">ราคา</th></tr>
+    {% for it in items %}
+    <tr>
+      <td>{{ it.part_name }}</td>
+      <td class="num">{{ it.quantity }}</td>
+      <td class="num">{{ "%.2f"|format(it.unit_price) }}</td>
+      <td class="num">{{ "%.2f"|format(it.quantity * it.unit_price) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="summary-row">
+      <td colspan="3" style="text-align:right;">รวมเป็นเงิน</td>
+      <td class="num">{{ "%.2f"|format(subtotal) }}</td>
+    </tr>
+    {% if include_vat %}
+    <tr class="summary-row">
+      <td colspan="3" style="text-align:right;">ภาษีมูลค่าเพิ่ม {{ vat_rate_percent }}%</td>
+      <td class="num">{{ "%.2f"|format(vat) }}</td>
+    </tr>
+    {% endif %}
+    <tr class="summary-row grand">
+      <td colspan="3" style="text-align:right;">ราคารวมทั้งหมด</td>
+      <td class="num">{{ "%.2f"|format(grand_total) }} บาท</td>
+    </tr>
+  </table>
+
+  {% if order.notes %}<p><b>หมายเหตุ:</b> {{ order.notes }}</p>{% endif %}
+
+  <div class="bottom">
+    <div>
+      <div class="pay-box">
+        <h4>ช่องทางการชำระเงิน</h4>
+        {% if hq and hq.bank_name and hq.bank_account_number %}
+        <p>ชำระเงินผ่านธนาคาร<br><b>{{ hq.bank_name }}</b> &nbsp;{{ hq.bank_account_number }}<br>{{ hq.name }}</p>
+        {% else %}
+        <p style="color:#999;">— ยังไม่ได้ตั้งค่าบัญชีธนาคารรับชำระ —</p>
+        {% endif %}
+      </div>
+      <div class="contact-box">
+        <h4>ติดต่อ / สอบถาม</h4>
+        <p>
+          {{ hq.phone if hq and hq.phone else '-' }}<br>
+          Facebook : 3DPrinter Deenaja<br>
+          Line : @3dprinter<br>
+          website : {{ hq.website if hq and hq.website else 'tdprinter.com' }}<br>
+          {{ hq.address if hq and hq.address else '' }}
+        </p>
+      </div>
+    </div>
+    <div class="sign-box">
+      <div class="sign-line">{{ order.sold_by_name }}<br>ผู้เสนอราคา/ผู้อนุมัติ</div>
+      <p>วันที่: {{ order.created_at }}</p>
+    </div>
+  </div>
+
+  <p class="hint-note">หมายเหตุ : ใบเสร็จรับเงินจะสมบูรณ์ก็ต่อเมื่อมีลายเซ็นผู้มีอำนาจลงนามแทนบริษัท
+    และในกรณีจ่ายด้วยเช็ค ใบเสร็จรับเงินจะสมบูรณ์ก็ต่อเมื่อเช็คเรียกเก็บเงินจากธนาคารได้แล้ว —
+    เอกสารนี้เป็นใบเสนอราคาอ้างอิงจากรายการในบิลขายนี้ ไม่ใช่ใบกำกับภาษีและไม่ใช่การยืนยันรับชำระเงิน</p>
+</body>
+</html>

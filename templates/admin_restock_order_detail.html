@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}คำสั่งซื้อ #{{ order.order_id }}{% endblock %}
+{% block content %}
+<h1>📦 คำสั่งซื้อ #{{ order.order_id }}</h1>
+<p><a href="/admin/restock-orders">&larr; กลับไปรายการคำสั่งซื้อทั้งหมด</a></p>
+
+<div class="card">
+  <div class="grid">
+    <div><label>ศูนย์บริการปลายทาง</label><div>{{ order.center_name }}</div></div>
+    <div><label>สถานะ</label><div>{{ status_label }}</div></div>
+    <div><label>ผู้สั่งซื้อ</label><div>{{ order.requested_by_name }}</div></div>
+    <div><label>สั่งซื้อเมื่อ</label><div>{{ order.created_at }}</div></div>
+    <div><label>เลขติดตามพัสดุ</label><div>{{ order.tracking_number or '—' }}</div></div>
+    <div><label>🧾 เอกสาร</label><div><a href="/admin/restock-orders/{{ order.order_id }}/delivery-note" target="_blank">พิมพ์ใบส่งสินค้า</a></div></div>
+  </div>
+  <form method="post" action="/admin/restock-orders/{{ order.order_id }}/edit" style="display:flex; gap:8px; align-items:flex-end; margin-top:10px; flex-wrap:wrap;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div style="flex:1; min-width:240px;"><label>หมายเหตุ</label><input type="text" name="notes" value="{{ order.notes or '' }}"></div>
+    <button class="btn small" type="submit">บันทึกหมายเหตุ</button>
+  </form>
+</div>
+
+<div class="card">
+  <table class="sortable">
+    <tr>
+      <th>สินค้า</th><th>SKU</th><th>จำนวนที่จัดส่ง</th><th>ราคา/หน่วย</th><th>รวม</th>
+      {% if order.status == 'received' %}<th>จำนวนที่รับแล้ว</th>{% endif %}
+      <th data-no-sort></th>
+    </tr>
+    {% for it in items %}
+    <tr data-pair-id="rn-item-edit-row-{{ it.item_id }}">
+      <td>{{ it.part_name }}</td>
+      <td>{{ it.part_sku }}</td>
+      <td>{{ it.quantity_requested }}</td>
+      <td>{{ "%.2f"|format(it.unit_price) }} บาท</td>
+      <td>{{ "%.2f"|format(it.quantity_requested * it.unit_price) }} บาท</td>
+      {% if order.status == 'received' %}<td>{{ it.quantity_received if it.quantity_received is not none else '—' }}</td>{% endif %}
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" type="button" onclick="toggleRNItemEdit({{ it.item_id }})">แก้ไข</button>
+        <form method="post" action="/admin/restock-orders/{{ order.order_id }}/item/{{ it.item_id }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบรายการ {{ it.part_name }} ออกจากคำสั่งซื้อนี้?{% if order.status == 'received' %} สต็อกที่เคยรับไปแล้วจะถูกหักคืนออกอัตโนมัติ{% endif %}');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="rn-item-edit-row-{{ it.item_id }}" style="display:none; background:#f7f9fc;">
+      <td colspan="{% if order.status == 'received' %}7{% else %}6{% endif %}">
+        <form method="post" action="/admin/restock-orders/{{ order.order_id }}/item/{{ it.item_id }}/edit" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div><label>จำนวนที่จัดส่ง</label><input type="number" name="quantity_requested" value="{{ it.quantity_requested }}" min="1" style="width:100px; margin:0;"></div>
+          <div><label>ราคา/หน่วย (บาท)</label><input type="number" name="unit_price" value="{{ it.unit_price }}" min="0" step="0.01" style="width:120px; margin:0;"></div>
+          {% if order.status == 'received' %}
+          <div><label>จำนวนที่รับแล้ว</label><input type="number" name="quantity_received" value="{{ it.quantity_received or 0 }}" min="0" style="width:100px; margin:0;"></div>
+          {% endif %}
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleRNItemEdit({{ it.item_id }})">ยกเลิก</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="{% if order.status == 'received' %}7{% else %}6{% endif %}">ไม่มีรายการสินค้าในคำสั่งซื้อนี้แล้ว</td></tr>
+    {% endfor %}
+    <tr style="font-weight:bold;">
+      <td colspan="4" style="text-align:right;">รวมทั้งหมด</td>
+      <td>{{ "%.2f"|format(total_amount) }} บาท</td>
+      {% if order.status == 'received' %}<td></td>{% endif %}
+      <td></td>
+    </tr>
+  </table>
+  <p class="hint">แก้ไข/ลบรายการได้ทุกสถานะ — ถ้าคำสั่งซื้อนี้ "ได้รับของแล้ว" ระบบจะปรับสต็อกตามส่วนต่างจำนวนที่รับให้อัตโนมัติเมื่อแก้ไข/ลบ</p>
+</div>
+
+{% if parts %}
+<div class="card">
+  <h2>+ เพิ่มรายการสินค้า</h2>
+  <form method="post" action="/admin/restock-orders/{{ order.order_id }}/item/add" id="rnAddItemForm" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;" onsubmit="return validateRNAddItem()">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <datalist id="rnAddPartsList">
+      {% for p in parts %}
+      <option value="{{ p.part_name }} ({{ p.part_sku }}) — {{ category_icons.get(p.category, '📦') }} {{ category_labels.get(p.category, p.category) }}"></option>
+      {% endfor %}
+    </datalist>
+    <div>
+      <label>สินค้า (พิมพ์เพื่อค้นหา)</label>
+      <input type="text" list="rnAddPartsList" id="rnAddLabel" oninput="onRNAddPartInput()" style="min-width:240px;">
+      <input type="hidden" name="sku" id="rnAddSku">
+    </div>
+    <div><label>จำนวน</label><input type="number" name="quantity" id="rnAddQty" min="1" value="1" style="width:90px; margin:0;"></div>
+    <div><label>ราคา/หน่วย (บาท)</label><input type="number" name="unit_price" id="rnAddPrice" min="0" step="0.01" style="width:120px; margin:0;"></div>
+    <button class="btn small" type="submit">เพิ่มรายการ</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <form method="post" action="/admin/restock-orders/{{ order.order_id }}/delete"
+        onsubmit="return confirm('ลบคำสั่งซื้อนี้ทั้งหมด?{% if order.status == 'received' %} สต็อกที่เคยรับไปแล้วทุกรายการจะถูกหักคืนออกอัตโนมัติ{% endif %} และไม่สามารถกู้คืนได้');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn danger" type="submit">🗑️ ลบคำสั่งซื้อนี้ทั้งหมด</button>
+  </form>
+</div>
+
+<script>
+  var RN_ADD_PARTS = {{ parts_for_js|tojson }};
+  var RN_ADD_PARTS_BY_LABEL = {};
+  RN_ADD_PARTS.forEach(function (p) { RN_ADD_PARTS_BY_LABEL[p.label] = p; });
+
+  function onRNAddPartInput() {
+    var part = RN_ADD_PARTS_BY_LABEL[document.getElementById('rnAddLabel').value];
+    var skuInput = document.getElementById('rnAddSku');
+    var priceInput = document.getElementById('rnAddPrice');
+    if (part) {
+      skuInput.value = part.sku;
+      priceInput.value = part.price;
+    } else {
+      skuInput.value = '';
+    }
+  }
+
+  function validateRNAddItem() {
+    if (!document.getElementById('rnAddSku').value) {
+      alert('กรุณาเลือกสินค้าจากรายการค้นหาให้ตรง');
+      return false;
+    }
+    return true;
+  }
+
+  function toggleRNItemEdit(itemId) {
+    var row = document.getElementById('rn-item-edit-row-' + itemId);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+</script>
+{% endblock %}

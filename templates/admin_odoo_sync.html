@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}ซิงก์ข้อมูลไป Odoo{% endblock %}
+{% block content %}
+<h1>🔗 ซิงก์ข้อมูลไป Odoo</h1>
+<p class="hint" style="margin-top:-6px;">นำเข้าข้อมูลเดิมที่มีอยู่แล้วในระบบนี้เข้า Odoo ครั้งเดียว (ลูกค้า/สินค้า/พนักงาน/ศูนย์บริการที่สร้างไว้ก่อนเปิดใช้ฟีเจอร์นี้จะยังไม่เคยถูกซิงก์) หรือกดซิงก์ซ้ำได้ทุกเมื่อ — ปลอดภัย ไม่สร้างข้อมูลซ้ำใน Odoo</p>
+
+{% if not odoo_configured %}
+<div class="error-box">ยังไม่ได้ตั้งค่าการเชื่อมต่อ Odoo (ODOO_URL/ODOO_DB/ODOO_USERNAME/ODOO_API_KEY) — ตั้งค่าใน .env ก่อน ดูขั้นตอนที่ DOCKER.md หัวข้อ "เชื่อมต่อ Odoo" แล้วค่อยกลับมาที่หน้านี้</div>
+{% endif %}
+
+{% if result %}
+<div class="card">
+  <h2>ผลการซิงก์ล่าสุด</h2>
+  <table>
+    <tr><th>ประเภท</th><th>สำเร็จ</th><th>ไม่สำเร็จ/ข้าม</th></tr>
+    <tr><td>ลูกค้า</td><td>{{ result.customers[0] }}</td><td>{{ result.customers[1] }}</td></tr>
+    <tr><td>สินค้า/อะไหล่</td><td>{{ result.products[0] }}</td><td>{{ result.products[1] }}</td></tr>
+    <tr><td>พนักงาน/ทีมงาน</td><td>{{ result.staff[0] }}</td><td>{{ result.staff[1] }}</td></tr>
+    <tr><td>ศูนย์บริการ</td><td>{{ result.centers[0] }}</td><td>{{ result.centers[1] }}</td></tr>
+  </table>
+  <p class="hint">รายการที่ "ไม่สำเร็จ/ข้าม" มักเกิดจาก Odoo ปิดอยู่ชั่วคราว/เชื่อมต่อไม่ทัน — ดูรายละเอียดข้อผิดพลาดได้ที่ log ของ container (<code>docker compose logs tdprinter-care | grep odoo_client</code>) แล้วลองกดซิงก์ซ้ำอีกครั้งได้ (ปลอดภัย ไม่สร้างข้อมูลซ้ำ)</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>ภาพรวม</h2>
+  <table>
+    <tr><th>ประเภทข้อมูล</th><th>ทั้งหมด</th><th>ซิงก์แล้ว</th><th>ยังไม่ซิงก์</th></tr>
+    <tr><td>ลูกค้า</td><td>{{ counts.customers.total }}</td><td>{{ counts.customers.synced }}</td><td>{{ counts.customers.total - counts.customers.synced }}</td></tr>
+    <tr><td>สินค้า/อะไหล่</td><td>{{ counts.products.total }}</td><td>{{ counts.products.synced }}</td><td>{{ counts.products.total - counts.products.synced }}</td></tr>
+    <tr><td>พนักงาน/ทีมงาน (ไม่รวมบัญชีลูกค้า)</td><td>{{ counts.staff.total }}</td><td>{{ counts.staff.synced }}</td><td>{{ counts.staff.total - counts.staff.synced }}</td></tr>
+    <tr><td>ศูนย์บริการ</td><td>{{ counts.centers.total }}</td><td>{{ counts.centers.synced }}</td><td>{{ counts.centers.total - counts.centers.synced }}</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>ซิงก์ตอนนี้</h2>
+  <form method="post" action="/admin/odoo-sync/run" onsubmit="return confirm('ซิงก์ข้อมูลที่เลือกไป Odoo ตอนนี้เลยหรือไม่? ถ้ามีข้อมูลจำนวนมากอาจใช้เวลาสักครู่');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label style="display:block; margin-bottom:8px;"><input type="checkbox" name="sync_customers" checked> ลูกค้า ({{ counts.customers.total }} รายการ)</label>
+    <label style="display:block; margin-bottom:8px;"><input type="checkbox" name="sync_products" checked> สินค้า/อะไหล่ ({{ counts.products.total }} รายการ) — ประเภทสินค้าจะถูกสร้างเป็นหมวดหมู่สินค้าใน Odoo ให้อัตโนมัติด้วย</label>
+    <label style="display:block; margin-bottom:8px;"><input type="checkbox" name="sync_staff" checked> พนักงาน/ทีมงาน ({{ counts.staff.total }} คน) — สร้างเป็นบัญชีผู้ใช้ Odoo สิทธิ์ขั้นต่ำ (Internal User) ต้องให้แอดมิน Odoo ตั้งรหัสผ่าน/สิทธิ์เพิ่มเติมเองภายหลัง</label>
+    <label style="display:block; margin-bottom:16px;"><input type="checkbox" name="sync_centers" checked> ศูนย์บริการ ({{ counts.centers.total }} สาขา)</label>
+    <button class="btn" type="submit" {% if not odoo_configured %}disabled{% endif %}>ซิงก์ที่เลือกไป Odoo</button>
+  </form>
+</div>
+{% endblock %}

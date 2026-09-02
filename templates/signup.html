@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}สมัครสมาชิก · TD ServicePro{% endblock %}
+{% block content %}
+<div class="login-box card">
+  <h1>สมัครสมาชิก</h1>
+  <p class="hint" style="margin-top:-6px;">สำหรับลูกค้าใหม่ — สมัครด้วยบัญชี Google หรือ LINE ของคุณ แล้วกรอกเบอร์มือถือเพื่อยืนยันตัวตน จากนั้นเพิ่มเครื่องพิมพ์ของคุณเข้าระบบได้ทันที (เริ่มต้น 3 เครื่อง)</p>
+
+  {% if google_ready %}
+  <a href="/auth/google/start" class="btn" style="width:100%; display:block; text-align:center; margin-bottom:10px;">
+    🔵 สมัคร/เข้าสู่ระบบด้วย Google
+  </a>
+  {% else %}
+  <button class="btn secondary" type="button" disabled style="width:100%; margin-bottom:4px; opacity:0.6; cursor:not-allowed;">
+    🔵 สมัคร/เข้าสู่ระบบด้วย Google
+  </button>
+  <p class="hint" style="margin-top:0; margin-bottom:10px;">ยังไม่พร้อมใช้งาน — แอดมินยังไม่ได้ตั้งค่า Google OAuth (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET)</p>
+  {% endif %}
+
+  {% if line_ready %}
+  <a href="/auth/line/start" class="btn" style="width:100%; display:block; text-align:center; margin-bottom:10px; background:linear-gradient(100deg,#06c755,#04a548);">
+    🟢 สมัคร/เข้าสู่ระบบด้วย LINE
+  </a>
+  {% else %}
+  <button class="btn secondary" type="button" disabled style="width:100%; margin-bottom:4px; opacity:0.6; cursor:not-allowed;">
+    🟢 สมัคร/เข้าสู่ระบบด้วย LINE
+  </button>
+  <p class="hint" style="margin-top:0; margin-bottom:10px;">ยังไม่พร้อมใช้งาน — แอดมินยังไม่ได้ตั้งค่า LINE Login (LINE_CHANNEL_ID/LINE_CHANNEL_SECRET)</p>
+  {% endif %}
+
+  {% if not google_ready and not line_ready %}
+  <div class="error-box">ระบบสมัครสมาชิกยังไม่พร้อมใช้งาน — กรุณาติดต่อแอดมินเพื่อขอให้ตั้งค่า Google หรือ LINE Login ก่อน หรือติดต่อสาขาเพื่อให้แอดมินสร้างบัญชีให้โดยตรง</div>
+  {% endif %}
+
+  <div class="hint" style="margin-top:14px;">
+    มีบัญชีอยู่แล้ว? <a href="/login">เข้าสู่ระบบ</a>
+  </div>
+</div>
+{% endblock %}

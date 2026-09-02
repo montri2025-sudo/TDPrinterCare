@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}ShareSpace{% endblock %}
+{% block content %}
+<h1>🔗 ShareSpace</h1>
+<p class="hint" style="margin-top:-6px;">
+  {% if tab == 'marketing' %}สื่อและไฟล์สำหรับฝ่ายขาย/โปรโมท จากกิจกรรมที่เผยแพร่แล้ว
+  {% else %}เอกสารเทคนิคสำหรับทีมช่างซ่อม จากกิจกรรมที่เผยแพร่แล้ว{% endif %}
+</p>
+
+{% if available_tabs|length > 1 %}
+<div style="display:flex; gap:8px; margin-bottom:14px;">
+  <a href="/sharespace?tab=marketing" class="btn small {{ 'secondary' if tab != 'marketing' }}">📣 Marketing</a>
+  <a href="/sharespace?tab=technical" class="btn small {{ 'secondary' if tab != 'technical' }}">🔧 Technical</a>
+</div>
+{% endif %}
+
+{% if not activities %}
+<div class="card">
+  <p class="hint">ยังไม่มีกิจกรรมที่เผยแพร่ในหมวดนี้</p>
+</div>
+{% else %}
+{% for a in activities %}
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+    <div>
+      <h3 style="margin:0 0 2px;">{{ a.title }}</h3>
+      <div class="hint" style="margin:0;">
+        {% if a.event_date %}🗓️ {{ a.event_date }}{% endif %}
+        {% if a.download_deadline %} · ปิดดาวน์โหลด {{ a.download_deadline }}{% endif %}
+      </div>
+    </div>
+    <a href="/sharespace-zip/{{ a.activity_id }}/{{ tab }}" class="btn small">⬇️ ดาวน์โหลดทั้งหมด ({{ a.files|length }} ไฟล์)</a>
+  </div>
+  {% if a.description %}<p style="margin:10px 0 6px;">{{ a.description }}</p>{% endif %}
+  <div style="margin-top:8px;">
+    {% for f in a.files %}
+    <div class="file-row">
+      <span class="file-row-icon">{{ f.filename|file_icon }}</span>
+      <div class="file-row-info">
+        <div class="file-row-name">{{ f.filename }}</div>
+        <div class="hint">{{ f.size_bytes|filesizeformat if f.size_bytes else '-' }}</div>
+      </div>
+      <a href="/sharespace-file/{{ f.file_id }}" class="btn small secondary">ดาวน์โหลด</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

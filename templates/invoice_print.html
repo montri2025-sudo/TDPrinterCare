@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ใบแจ้งหนี้ — ตั๋ว #{{ t.ticket_id }}</title>
+<style>
+  body { font-family: "Tahoma", "Segoe UI", sans-serif; color: #222; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1f3864; padding-bottom: 16px; margin-bottom: 24px; }
+  .header h1 { color: #1f3864; margin: 0; font-size: 22px; }
+  .header p { margin: 2px 0; font-size: 12px; color: #666; }
+  .doc-title { text-align: right; }
+  .doc-title h2 { margin: 0; color: #2e5395; }
+  .doc-title p { margin: 2px 0; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 10px; font-size: 14px; text-align: left; }
+  th { background: #f0f0f0; }
+  .total-row td { font-weight: bold; font-size: 16px; }
+  .meta p { margin: 3px 0; font-size: 14px; }
+  .no-print { margin-bottom: 24px; }
+  .btn { background: #2e5395; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .footnote { font-size: 12px; color: #888; margin-top: 40px; }
+  @media print { .no-print { display: none; } body { margin: 0; } }
+</style>
+</head>
+<body>
+  <div class="no-print">
+    <button class="btn" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+    <p style="font-size:12px; color:#666;">กดปุ่มนี้ แล้วในหน้าต่างพิมพ์ เลือกปลายทางเป็น “Save as PDF” เพื่อบันทึกไฟล์ PDF</p>
+  </div>
+
+  <div class="header">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <img src="/static/logo.svg" alt="TD ServicePro" style="height:44px; width:auto;">
+      <div>
+        <h1>TD ServicePro</h1>
+        <p>ศูนย์บริการซ่อมเครื่องพิมพ์ 3D</p>
+      </div>
+    </div>
+    <div class="doc-title">
+      <h2>ใบแจ้งหนี้</h2>
+      <p>ตั๋วซ่อมเลขที่ #{{ t.ticket_id }}</p>
+      <p>วันที่ปิดงาน {{ t.closed_at or '-' }}</p>
+    </div>
+  </div>
+
+  <div class="meta">
+    <p><b>ลูกค้า:</b> {{ t.customer_name }}</p>
+    <p><b>เบอร์โทร:</b> {{ t.phone or '-' }}</p>
+    <p><b>ที่อยู่:</b> {{ t.address or '-' }}</p>
+    <p><b>เครื่องพิมพ์:</b> {{ t.model }} ({{ t.device_sn }})</p>
+    <p><b>ปัญหาที่แจ้ง:</b> {{ t.issue_category }}</p>
+  </div>
+
+  {% if invoice_items %}
+  <table>
+    <tr><th>วันที่</th><th>รายการซ่อม</th><th>อะไหล่</th><th>ค่าอะไหล่ (บาท)</th><th>ค่าบริการ (บาท)</th><th>รวม (บาท)</th><th>หมายเหตุช่าง</th></tr>
+    {% for it in invoice_items %}
+    <tr>
+      <td>{{ it.created_at }}</td>
+      <td>{{ it.action }}</td>
+      <td>{{ it.part_name or '-' }}{% if it.is_claim %} (เคลมประกัน){% endif %}</td>
+      <td>{{ "%.2f"|format(it.part_cost) }}</td>
+      <td>{{ "%.2f"|format(it.labor_fee) }}</td>
+      <td>{{ "%.2f"|format(it.line_total) }}</td>
+      <td>{{ it.tech_notes or '-' }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="total-row">
+      <td colspan="5" style="text-align:right;">ยอดรวมสุทธิ</td>
+      <td>{{ "%.2f"|format(invoice_total) }} บาท</td>
+      <td></td>
+    </tr>
+  </table>
+  {% else %}
+  <p>ไม่มีค่าใช้จ่ายในการซ่อมนี้</p>
+  {% endif %}
+
+  <p class="footnote">เอกสารนี้เป็นใบสรุปค่าใช้จ่ายการซ่อม ไม่ใช่ใบกำกับภาษี</p>
+</body>
+</html>

@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% from "_payment_macros.html" import payment_section %}
+{% block title %}ตั๋ว #{{ t.ticket_id }}{% endblock %}
+{% block content %}
+<a href="/customer/tickets">← กลับไปหน้ารายการตั๋ว</a>
+
+{% set next_step_hints = {
+  'New': 'เจ้าหน้าที่จะคัดกรองและมอบหมายช่างเร็วๆ นี้',
+  'Diagnosing': 'ช่างกำลังตรวจสอบอาการเครื่องของคุณ',
+  'Waiting for Parts': 'รอเบิกอะไหล่ เพื่อดำเนินการซ่อมต่อ',
+  'In Repair': 'ช่างกำลังดำเนินการซ่อม',
+  'Testing': 'ช่างกำลังทดสอบเครื่องก่อนส่งมอบ',
+  'Resolved/Closed': 'งานซ่อมเสร็จเรียบร้อยแล้ว พร้อมรับเครื่องคืน',
+} %}
+<div class="ticket-hero">
+  <div class="ticket-hero-id">ใบงาน #{{ t.ticket_id }}</div>
+  <div class="ticket-hero-title">{{ t.model }}</div>
+  <span class="ticket-hero-badge">{{ status_icons.get(t.status, '') }} {{ status_labels.get(t.status, t.status) }}</span>
+  <p class="ticket-hero-next">ขั้นตอนถัดไป: {{ next_step_hints.get(t.status, '-') }}</p>
+</div>
+
+<div class="card">
+  <div class="ticket-stepper">
+    {% for s in statuses %}
+    {% set idx = status_index[t.status] %}
+    <div class="step {{ 'done' if loop.index0 < idx else ('current' if loop.index0 == idx else '') }}">
+      <div class="step-dot"></div>
+      {{ status_labels.get(s, s) }}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="ticket-info-grid">
+    <div class="ticket-info-box">
+      <div class="label">ช่างผู้ดูแล</div>
+      <div class="value">{{ t.tech_name or '— ยังไม่มอบหมาย —' }}</div>
+    </div>
+    {% if t.channel == 'booking' %}
+    <div class="ticket-info-box">
+      <div class="label">🗓️ วันนัดหมาย</div>
+      <div class="value">{{ t.booking_date }} ช่วง {{ t.booking_time_slot }}</div>
+    </div>
+    {% else %}
+    <div class="ticket-info-box">
+      <div class="label">แจ้งซ่อมเมื่อ</div>
+      <div class="value">{{ t.created_at }}</div>
+    </div>
+    {% endif %}
+    <div class="ticket-info-box">
+      <div class="label">สาขาที่เข้ารับบริการ</div>
+      <div class="value">{{ t.center_name or '-' }}</div>
+    </div>
+  </div>
+
+  <p><b>ปัญหา:</b> {{ t.issue_category }}</p>
+  <p><b>รายละเอียด:</b> {{ t.description or '-' }}</p>
+  {% if t.closed_at %}<p><b>ปิดงานเมื่อ:</b> {{ t.closed_at }}</p>{% endif %}
+
+  {% if t.status == 'New' %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn small secondary" type="button" onclick="toggleEditTicket()">แก้ไขรายการแจ้งซ่อม</button>
+      <form method="post" action="/customer/ticket/{{ t.ticket_id }}/cancel"
+            onsubmit="return confirm('ยืนยันยกเลิกรายการแจ้งซ่อมนี้? การยกเลิกไม่สามารถกู้คืนได้');" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn small danger" type="submit">ยกเลิกรายการแจ้งซ่อม</button>
+      </form>
+    </div>
+    <div id="edit-ticket-box" style="display:none; margin-top:12px;">
+      <form method="post" action="/customer/ticket/{{ t.ticket_id }}/edit">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if centers %}
+        <label>สาขาที่ต้องการเข้ารับบริการ</label>
+        <select name="center_id">
+          {% for c in centers %}
+          <option value="{{ c.center_id }}" {% if t.center_id == c.center_id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+        <label>ประเภทปัญหา</label>
+        <select name="issue_category">
+          {% for opt in ['พิมพ์ไม่ติด', 'เปิดไม่ติด', 'เสียงดัง', 'จอ/หน้าจอเสีย', 'เฟิร์มแวร์/ซอฟต์แวร์', 'อื่นๆ'] %}
+          <option {% if t.issue_category == opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+        <label>รายละเอียดปัญหา</label>
+        <textarea name="description" rows="4">{{ t.description or '' }}</textarea>
+        <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="hint">แก้ไข/ยกเลิกรายการแจ้งซ่อมได้เฉพาะตอนที่ยังอยู่ในสถานะ "รอซ่อม" เท่านั้น</p>
+  {% endif %}
+
+  {% if media %}
+  <h2>รูปภาพ/วิดีโอที่แนบ</h2>
+  <div class="media-grid">
+    {% for md in media %}
+      {% if md.media_type == 'image' %}
+      <a href="/media/{{ md.ticket_id }}/{{ md.stored_name }}" target="_blank">
+        <img src="/media/{{ md.ticket_id }}/{{ md.stored_name }}" alt="{{ md.filename }}">
+      </a>
+      {% else %}
+      <video controls><source src="/media/{{ md.ticket_id }}/{{ md.stored_name }}"></video>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="ticket-columns">
+    <div>
+      <h2>ประวัติการดำเนินงาน</h2>
+      {% if status_history %}
+        {% for h in status_history %}
+        <div class="history-item">
+          <div class="history-dot"></div>
+          <div>
+            <div class="history-title">{% if h.from_label %}{{ h.from_label }} → {% endif %}{{ h.to_label }}</div>
+            {% if h.note %}<div class="history-sub">{{ h.note }}</div>{% endif %}
+          </div>
+          <div class="history-time">{{ h.changed_at }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <p class="hint">ยังไม่มีประวัติการเปลี่ยนสถานะ</p>
+      {% endif %}
+    </div>
+    <div class="help-card">
+      <h4>ต้องการความช่วยเหลือ?</h4>
+      <p>สอบถามข้อมูลเพิ่มเติม หรือแจ้งรายละเอียดที่เกี่ยวข้องกับงานซ่อมได้ตลอดเวลา</p>
+      {% if t.center_phone %}
+      <a href="tel:{{ t.center_phone }}" class="btn small">📞 ติดต่อศูนย์บริการ ({{ t.center_phone }})</a>
+      {% else %}
+      <p class="hint" style="margin:0;">ยังไม่มีเบอร์ติดต่อของสาขานี้ในระบบ</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if logs %}
+  <h2>ประวัติการซ่อม</h2>
+  <table class="sortable">
+    <tr><th>วันที่</th><th>การดำเนินการ</th><th>หมายเหตุช่าง</th><th data-no-sort>รูปภาพ/วิดีโอ</th></tr>
+    {% for l in logs %}
+    <tr>
+      <td>{{ l.created_at }}</td><td>{{ l.action_taken }}</td><td>{{ l.tech_notes or '-' }}</td>
+      <td>
+        {% if l.media %}
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          {% for md in l.media %}
+            {% if md.media_type == 'image' %}
+            <a href="/media/{{ md.ticket_id }}/{{ md.stored_name }}" target="_blank">
+              <img src="/media/{{ md.ticket_id }}/{{ md.stored_name }}" alt="{{ md.filename }}"
+                   style="width:44px; height:44px; object-fit:cover; border-radius:6px;">
+            </a>
+            {% else %}
+            <a href="/media/{{ md.ticket_id }}/{{ md.stored_name }}" target="_blank" class="btn small secondary">🎥 ดูวิดีโอ</a>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <span class="hint">-</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if quotes %}
+  <h2>ใบเสนอราคา</h2>
+  {% for q in quotes %}
+  <div class="card" style="background:#fafbfe;">
+    <b>ใบเสนอราคา #{{ q.quote_id }}</b> — {{ q.created_at }}
+    <table class="sortable">
+      <tr><th>รายการ</th><th>จำนวน</th><th>ราคา/หน่วย</th><th>รวม</th><th>หมายเหตุช่าง</th></tr>
+      {% for it in q.line_items %}
+      <tr><td>{{ it.description }}</td><td>{{ it.quantity }}</td><td>{{ "%.0f"|format(it.unit_price) }}</td><td>{{ "%.0f"|format(it.quantity * it.unit_price) }}</td><td>{{ it.tech_notes or '-' }}</td></tr>
+      {% endfor %}
+    </table>
+    <p style="text-align:right;"><b>รวมทั้งสิ้น: {{ "%.0f"|format(q.total) }} บาท</b></p>
+    {% if q.notes %}<p class="hint">หมายเหตุ: {{ q.notes }}</p>{% endif %}
+    <p style="text-align:right;"><a href="/quote/{{ q.quote_id }}/print" target="_blank" class="btn small secondary">🖨️ พิมพ์ / PDF</a></p>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if t.status == 'Resolved/Closed' %}
+    <h2>🧾 ใบแจ้งหนี้</h2>
+    {% if invoice_items %}
+    <table class="sortable">
+      <tr><th>วันที่</th><th>รายการซ่อม</th><th>อะไหล่</th><th>ค่าอะไหล่</th><th>ค่าบริการ</th><th>รวม</th><th>หมายเหตุช่าง</th></tr>
+      {% for it in invoice_items %}
+      <tr>
+        <td>{{ it.created_at }}</td><td>{{ it.action }}</td>
+        <td>{{ it.part_name or '-' }}{% if it.is_claim %} <span class="badge" style="background:var(--amber-bg); color:var(--amber-fg);">🛡️ เคลม</span>{% endif %}</td>
+        <td>{{ "%.0f"|format(it.part_cost) }}</td><td>{{ "%.0f"|format(it.labor_fee) }}</td>
+        <td>{{ "%.0f"|format(it.line_total) }}</td><td>{{ it.tech_notes or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p style="text-align:right; font-size:18px;"><b>ยอดรวมสุทธิ: {{ "%.0f"|format(invoice_total) }} บาท</b></p>
+    <p style="text-align:right;"><a href="/ticket/{{ t.ticket_id }}/invoice/print" target="_blank" class="btn small secondary">🖨️ ดาวน์โหลด PDF</a></p>
+    {% else %}
+    <p class="hint">ไม่มีค่าใช้จ่ายในการซ่อมนี้</p>
+    {% endif %}
+    {{ payment_section(t, payments, false, csrf_token) }}
+  {% endif %}
+
+  {% if t.status == 'Resolved/Closed' %}
+    <h2>ประเมินความพึงพอใจ (CSAT)</h2>
+    {% if t.csat_score %}
+      <p>คุณให้คะแนน: <b>{{ t.csat_score }}/5</b> — {{ t.csat_comment or '' }}</p>
+      <p class="ok">ขอบคุณสำหรับการประเมิน 🙏</p>
+    {% else %}
+      <form method="post" action="/customer/ticket/{{ t.ticket_id }}/csat">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>ให้คะแนนความพึงพอใจ</label>
+        <select name="score">
+          <option value="5">5 - พอใจมาก</option>
+          <option value="4">4 - พอใจ</option>
+          <option value="3">3 - ปานกลาง</option>
+          <option value="2">2 - ไม่ค่อยพอใจ</option>
+          <option value="1">1 - ไม่พอใจ</option>
+        </select>
+        <label>ความคิดเห็นเพิ่มเติม</label>
+        <textarea name="comment" rows="3"></textarea>
+        <button class="btn" type="submit">ส่งคะแนน</button>
+      </form>
+    {% endif %}
+  {% endif %}
+</div>
+<script>
+  function toggleEditTicket() {
+    var box = document.getElementById('edit-ticket-box');
+    if (box) { box.style.display = (box.style.display === 'none') ? 'block' : 'none'; }
+  }
+</script>
+{% endblock %}

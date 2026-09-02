@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}สร้างคำสั่งซื้อใหม่{% endblock %}
+{% block content %}
+<h1>📦 สร้างคำสั่งซื้อ/จัดส่งสินค้าใหม่</h1>
+<p class="hint" style="margin-top:-6px;">แอดมิน (HQ) สร้างคำสั่งจัดส่งสินค้า/อะไหล่ไปยังศูนย์บริการโดยตรง — ไม่ต้องรอศูนย์บริการร้องขอ</p>
+<p><a href="/admin/restock-orders">&larr; กลับไปรายการคำสั่งซื้อทั้งหมด</a></p>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <form method="get" action="/admin/restock-orders/new" style="display:flex; gap:8px; align-items:flex-end;">
+    <div style="flex:1;">
+      <label>ศูนย์บริการปลายทาง</label>
+      <select name="center_id" onchange="this.form.submit()">
+        <option value="">— เลือกศูนย์บริการ —</option>
+        {% for c in centers %}
+        <option value="{{ c.center_id }}" {% if center and c.center_id == center.center_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <noscript><button class="btn" type="submit">เลือกศูนย์</button></noscript>
+  </form>
+</div>
+
+{% if center %}
+<div class="card">
+  <h2>ศูนย์บริการปลายทาง: {{ center.name }}</h2>
+  <form method="post" action="/admin/restock-orders/new" id="restockNewForm" onsubmit="return validateRestockNewForm()">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="center_id" value="{{ center.center_id }}">
+    <label>หมายเหตุ (ไม่บังคับ)</label>
+    <input type="text" name="notes" placeholder="เช่น จัดส่งรอบประจำเดือน">
+
+    <datalist id="restockNewPartsList">
+      {% for p in parts %}
+      <option value="{{ p.part_name }} ({{ p.part_sku }}) — {{ category_icons.get(p.category, '📦') }} {{ category_labels.get(p.category, p.category) }}"></option>
+      {% endfor %}
+    </datalist>
+
+    {% if parts %}
+    <table id="restockNewLinesTable">
+      <thead>
+        <tr><th>สินค้า (พิมพ์เพื่อค้นหา)</th><th>สต็อกปัจจุบัน</th><th>จำนวนที่จัดส่ง</th><th>ราคา/หน่วย (บาท)</th><th>รวม</th><th></th></tr>
+      </thead>
+      <tbody id="restockNewLinesBody">
+        <tr class="rn-line" data-idx="1">
+          <td>
+            <input type="text" list="restockNewPartsList" id="rnlabel_1" oninput="onRNPartInput(1)"
+                   placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา หรือคลิกดูรายการทั้งหมด" style="min-width:240px;">
+            <input type="hidden" name="sku_1" id="rnsku_1">
+          </td>
+          <td id="rnstock_1" class="hint">-</td>
+          <td><input type="number" name="qty_1" id="rnqty_1" min="1" value="1" oninput="rnRecalcLine(1)" style="width:90px; margin:0;"></td>
+          <td><input type="number" name="price_1" id="rnprice_1" min="0" step="0.01" oninput="onRNPriceInput(1)" style="width:110px; margin:0;"></td>
+          <td id="rnlinetotal_1">0 บาท</td>
+          <td><button type="button" class="btn small danger" onclick="removeRNLine(1)">ลบ</button></td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:bold;">
+          <td colspan="4" style="text-align:right;">ยอดรวมสุทธิ</td>
+          <td id="rnGrandTotal">0 บาท</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p style="margin:10px 0;">
+      <button type="button" class="btn secondary" onclick="addRNLine()">+ เพิ่มรายการสินค้า</button>
+    </p>
+    <p class="hint">รายการค้นหาจะแสดงประเภทสินค้ากำกับท้ายชื่อด้วย (เช่น 🔧 อะไหล่ / 🧵 วัสดุพิมพ์) ช่วยลดโอกาสเลือกสินค้าผิดชนิดที่ชื่อคล้ายกัน — เลือกสินค้าแล้วราคาจะตั้งต้นจากราคาทุนให้อัตโนมัติ (แก้ไขได้) ตัวเลขนี้จะใช้แสดงบนใบส่งสินค้าด้วย</p>
+    <button class="btn" type="submit">สร้างคำสั่งซื้อ</button>
+    {% else %}
+    <p class="hint">ยังไม่มีสินค้าในคลังของศูนย์นี้ — เพิ่มสินค้าได้ที่หน้า "คลังสินค้า" ก่อน</p>
+    {% endif %}
+  </form>
+</div>
+
+<template id="rn-line-template">
+  <tr class="rn-line" data-idx="__IDX__">
+    <td>
+      <input type="text" list="restockNewPartsList" id="rnlabel___IDX__" oninput="onRNPartInput(__IDX__)"
+             placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา หรือคลิกดูรายการทั้งหมด" style="min-width:240px;">
+      <input type="hidden" name="sku___IDX__" id="rnsku___IDX__">
+    </td>
+    <td id="rnstock___IDX__" class="hint">-</td>
+    <td><input type="number" name="qty___IDX__" id="rnqty___IDX__" min="1" value="1" oninput="rnRecalcLine(__IDX__)" style="width:90px; margin:0;"></td>
+    <td><input type="number" name="price___IDX__" id="rnprice___IDX__" min="0" step="0.01" oninput="onRNPriceInput(__IDX__)" style="width:110px; margin:0;"></td>
+    <td id="rnlinetotal___IDX__">0 บาท</td>
+    <td><button type="button" class="btn small danger" onclick="removeRNLine(__IDX__)">ลบ</button></td>
+  </tr>
+</template>
+
+<script>
+  var RN_PARTS = {{ parts_for_js|tojson }};
+  var RN_PARTS_BY_LABEL = {};
+  RN_PARTS.forEach(function (p) { RN_PARTS_BY_LABEL[p.label] = p; });
+  var rnLineCounter = 1;
+
+  function rnFmtMoney(n) {
+    return n.toLocaleString('th-TH', { maximumFractionDigits: 2 }) + ' บาท';
+  }
+
+  function onRNPartInput(idx) {
+    var labelInput = document.getElementById('rnlabel_' + idx);
+    var skuInput = document.getElementById('rnsku_' + idx);
+    var priceInput = document.getElementById('rnprice_' + idx);
+    var stockCell = document.getElementById('rnstock_' + idx);
+    var part = RN_PARTS_BY_LABEL[labelInput.value];
+    if (part) {
+      skuInput.value = part.sku;
+      if (priceInput.dataset.auto !== 'false') {
+        priceInput.value = part.price;
+        priceInput.dataset.auto = 'true';
+      }
+      stockCell.textContent = part.stock + ' ชิ้น';
+    } else {
+      skuInput.value = '';
+      stockCell.textContent = '-';
+    }
+    rnRecalcLine(idx);
+  }
+
+  function onRNPriceInput(idx) {
+    document.getElementById('rnprice_' + idx).dataset.auto = 'false';
+    rnRecalcLine(idx);
+  }
+
+  function rnRecalcLine(idx) {
+    var qty = parseFloat(document.getElementById('rnqty_' + idx).value) || 0;
+    var price = parseFloat(document.getElementById('rnprice_' + idx).value) || 0;
+    document.getElementById('rnlinetotal_' + idx).textContent = rnFmtMoney(qty * price);
+    rnRecalcGrandTotal();
+  }
+
+  function rnRecalcGrandTotal() {
+    var rows = document.querySelectorAll('#restockNewLinesBody .rn-line');
+    var sum = 0;
+    rows.forEach(function (row) {
+      var idx = row.dataset.idx;
+      var qty = parseFloat(document.getElementById('rnqty_' + idx).value) || 0;
+      var price = parseFloat(document.getElementById('rnprice_' + idx).value) || 0;
+      sum += qty * price;
+    });
+    document.getElementById('rnGrandTotal').textContent = rnFmtMoney(sum);
+  }
+
+  function addRNLine() {
+    rnLineCounter++;
+    var html = document.getElementById('rn-line-template').innerHTML.split('__IDX__').join(rnLineCounter);
+    var wrap = document.createElement('tbody');
+    wrap.innerHTML = html;
+    document.getElementById('restockNewLinesBody').appendChild(wrap.querySelector('tr'));
+  }
+
+  function removeRNLine(idx) {
+    var rows = document.querySelectorAll('#restockNewLinesBody .rn-line');
+    if (rows.length <= 1) {
+      alert('ต้องมีอย่างน้อย 1 รายการ');
+      return;
+    }
+    var row = document.querySelector('.rn-line[data-idx="' + idx + '"]');
+    if (row) row.remove();
+    rnRecalcGrandTotal();
+  }
+
+  function validateRestockNewForm() {
+    var rows = document.querySelectorAll('#restockNewLinesBody .rn-line');
+    var hasValid = false;
+    for (var i = 0; i < rows.length; i++) {
+      var idx = rows[i].dataset.idx;
+      var sku = document.getElementById('rnsku_' + idx).value;
+      var label = document.getElementById('rnlabel_' + idx).value.trim();
+      var qty = parseFloat(document.getElementById('rnqty_' + idx).value) || 0;
+      if (label && !sku) {
+        alert('กรุณาเลือกสินค้าจากรายการค้นหาให้ตรง (บรรทัดที่ ' + idx + ')');
+        return false;
+      }
+      if (sku && qty > 0) hasValid = true;
+    }
+    if (!hasValid) {
+      alert('กรุณาเพิ่มอย่างน้อย 1 รายการสินค้า พร้อมเลือกสินค้าและระบุจำนวน');
+      return false;
+    }
+    return true;
+  }
+</script>
+{% endif %}
+{% endblock %}

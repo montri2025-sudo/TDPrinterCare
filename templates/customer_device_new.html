@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}เพิ่มเครื่องพิมพ์ของฉัน{% endblock %}
+{% block content %}
+<h1>🖨️ เครื่องพิมพ์ของฉัน</h1>
+<p class="hint" style="margin-top:-6px;">ระบบจะขอตำแหน่งของคุณจากเบราว์เซอร์โดยอัตโนมัติ (ถ้าอนุญาต) เพื่อนำไปแสดงบนแผนที่ที่หน้า Dashboard — ปฏิเสธได้ตามปกติ ไม่กระทบการใช้งาน</p>
+
+{% if welcome %}
+<div class="card" style="background:var(--blue-bg); margin-bottom:16px;">
+  <strong>ยินดีต้อนรับสู่ TD ServicePro! 🎉</strong>
+  <p class="hint" style="margin-bottom:0;">สมัครสมาชิกสำเร็จแล้ว — เพิ่มเครื่องพิมพ์ของคุณเข้าระบบได้เลย (ข้ามขั้นตอนนี้ไปก่อนแล้วเพิ่มทีหลังก็ได้)</p>
+</div>
+{% endif %}
+{% if just_added %}
+<div class="card" style="background:var(--blue-bg); margin-bottom:16px;">
+  <span class="ok">✓ เพิ่มเครื่องพิมพ์เรียบร้อยแล้ว</span>
+</div>
+{% endif %}
+
+<div class="grid">
+  <div class="card">
+    <h2>+ ลงทะเบียนเครื่องพิมพ์ของฉัน</h2>
+    <p class="hint" style="margin-top:-6px;">
+      ลงทะเบียนแล้ว <strong{% if quota_reached %} class="warning"{% endif %}>{{ device_count }} / {{ quota }}</strong> เครื่อง
+      {% if quota_reached %} — ครบโควตาแล้ว หากต้องการเพิ่มเครื่องมากกว่านี้ กรุณาติดต่อแอดมิน{% endif %}
+    </p>
+    {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+    {% if not quota_reached %}
+    <form method="post" action="/customer/devices/new" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Serial Number</label><input type="text" name="device_sn" required>
+      <label>รุ่นเครื่องพิมพ์</label><input type="text" name="model" placeholder="เช่น Kobra 2" required>
+      <label>ประเภท</label>
+      <select name="type">
+        <option>FDM</option>
+        <option>Resin</option>
+        <option>Wash &amp; Cure</option>
+        <option>Other</option>
+      </select>
+      <label>วันที่ซื้อ</label><input type="date" name="purchase_date" id="device_purchase_date">
+      <label>วันหมดประกัน</label><input type="date" name="warranty_end_date" id="device_warranty_date">
+      <p class="hint" style="margin-top:-6px;">เลือกวันที่ซื้อแล้วระบบจะเติมวันหมดประกัน +1 ปีให้อัตโนมัติ แก้ไขเองภายหลังได้ แต่ต้องไม่เกิน 3 ปีนับจากวันที่ซื้อ</p>
+      <label>หลักฐานการสั่งซื้อ (รูปภาพหรือ PDF)</label>
+      <input type="file" name="purchase_proof" accept="image/*,application/pdf">
+      <p class="hint" style="margin-top:-6px;">ไม่บังคับแนบ — ขนาดไฟล์ไม่เกิน {{ max_device_proof_mb }} MB</p>
+      <button class="btn" type="submit">บันทึกเครื่องพิมพ์</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>เครื่องพิมพ์ที่ลงทะเบียนแล้ว</h2>
+    {% if not my_devices %}
+    <p class="hint">ยังไม่มีเครื่องพิมพ์ในบัญชีของคุณ</p>
+    {% else %}
+    <table class="sortable">
+      <tr><th>SN</th><th>รุ่น</th><th>ประเภท</th><th>สถานะ</th><th data-no-sort>หลักฐานการสั่งซื้อ</th></tr>
+      {% for d in my_devices %}
+      <tr>
+        <td>{{ d.device_sn }}</td>
+        <td>{{ d.model }}</td>
+        <td>{{ d.type }}</td>
+        <td>{{ device_status_labels.get(d.status, d.status) }}</td>
+        <td>
+          {% if d.purchase_proof_filename %}
+          <a href="/device-proof/{{ d.device_sn|urlencode }}/{{ d.purchase_proof_filename|urlencode }}" target="_blank" class="btn small secondary">📎 ดูไฟล์</a>
+          {% else %}
+          <span class="hint">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  (function () {
+    function addYears(dateStr, years) {
+      var parts = dateStr.split('-').map(Number);
+      var y = parts[0], mo = parts[1], d = parts[2];
+      var newY = y + years;
+      if (mo === 2 && d === 29) {
+        var isLeap = (newY % 4 === 0 && newY % 100 !== 0) || (newY % 400 === 0);
+        if (!isLeap) d = 28;
+      }
+      var mm = String(mo).padStart(2, '0');
+      var dd = String(d).padStart(2, '0');
+      return newY + '-' + mm + '-' + dd;
+    }
+    var purchaseInput = document.getElementById('device_purchase_date');
+    var warrantyInput = document.getElementById('device_warranty_date');
+    if (purchaseInput && warrantyInput) {
+      purchaseInput.addEventListener('change', function () {
+        if (!purchaseInput.value) {
+          warrantyInput.removeAttribute('min');
+          warrantyInput.removeAttribute('max');
+          return;
+        }
+        warrantyInput.value = addYears(purchaseInput.value, 1);
+        warrantyInput.min = purchaseInput.value;
+        warrantyInput.max = addYears(purchaseInput.value, 3);
+      });
+    }
+  })();
+
+  // ระบุตำแหน่งลูกค้าอัตโนมัติ (ถ้าเบราว์เซอร์อนุญาต) แล้วส่งไปบันทึกไว้เงียบๆ เบื้องหลัง — ไม่บล็อกการใช้งานหน้านี้
+  // และไม่แจ้งเตือนใดๆ ถ้าผู้ใช้ปฏิเสธสิทธิ์ (fail silently ตามที่ควรเป็นสำหรับ background enhancement)
+  (function () {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var body = 'csrf_token=' + encodeURIComponent({{ csrf_token|tojson }}) +
+        '&latitude=' + encodeURIComponent(pos.coords.latitude) +
+        '&longitude=' + encodeURIComponent(pos.coords.longitude);
+      fetch('/customer/location/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body,
+        credentials: 'same-origin',
+      }).catch(function () { /* เงียบไว้ — ไม่ใช่ปัญหาร้ายแรง แค่แผนที่จะยังไม่ขึ้นตำแหน่งลูกค้า */ });
+    }, function () { /* ผู้ใช้ปฏิเสธสิทธิ์ หรืออุปกรณ์หาตำแหน่งไม่ได้ — ไม่ต้องแจ้งเตือน */ },
+      { timeout: 8000, maximumAge: 600000 });
+  })();
+</script>
+
+<p style="margin-top:16px;"><a href="/customer/dashboard">← ไปที่ Dashboard ของฉัน</a></p>
+{% endblock %}

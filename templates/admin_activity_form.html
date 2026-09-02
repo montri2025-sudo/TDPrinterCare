@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}{% if activity %}แก้ไขกิจกรรม{% else %}สร้างกิจกรรมใหม่{% endif %}{% endblock %}
+{% block content %}
+<a href="/admin/activities?tab={{ category or 'marketing' }}">← กลับไปหน้ารายการกิจกรรม</a>
+
+{% if not activity %}
+<div class="card" style="display:flex; align-items:center; gap:22px; padding:14px 20px; margin-top:10px;">
+  <span style="font-weight:800; font-size:16px; color:var(--brand);">🔗 ShareSpace</span>
+  <a href="/admin/activities/new?category=marketing"
+     style="font-weight:{{ '800' if category == 'marketing' else '500' }}; color:{{ 'var(--ink)' if category == 'marketing' else 'var(--muted)' }}; text-decoration:none;">Marketing</a>
+  <a href="/admin/activities/new?category=technical"
+     style="font-weight:{{ '800' if category == 'technical' else '500' }}; color:{{ 'var(--ink)' if category == 'technical' else 'var(--muted)' }}; text-decoration:none;">Technical</a>
+</div>
+{% endif %}
+
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-top:6px;">
+  <div>
+    <h1>
+      {% if activity %}✏️ แก้ไขกิจกรรม{% else %}🆕 สร้างกิจกรรม{{ category_labels.get(category, '') }}ใหม่{% endif %}
+    </h1>
+    {% if activity and category %}
+    <span class="tag" style="background:var(--blue-bg); color:var(--blue-fg);">{{ category_labels.get(category, category) }}</span>
+    {% elif activity %}
+    <span class="tag" style="background:var(--grey-bg); color:var(--grey-fg);">🔀 กิจกรรมผสม (เดิม)</span>
+    {% endif %}
+    <p class="hint" style="margin-top:6px;">แบ่งไฟล์และรายละเอียดตามกลุ่มผู้ใช้งาน เพื่อให้ทุกคนเห็นเฉพาะสิ่งที่เกี่ยวข้อง</p>
+  </div>
+</div>
+
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<form method="post"
+      action="{% if activity %}/admin/activities/{{ activity.activity_id }}/edit{% else %}/admin/activities/new?category={{ category }}{% endif %}"
+      enctype="multipart/form-data" id="activityForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="action" id="activityFormAction" value="draft">
+
+  <div class="ticket-columns" style="grid-template-columns: 1.6fr 1fr; align-items:start;">
+    <div>
+      <div class="card">
+        <h2 style="margin-top:0;">รายละเอียดกิจกรรม</h2>
+        <label>ชื่อกิจกรรม</label>
+        <input type="text" name="title" value="{{ activity.title if activity else '' }}" placeholder="เช่น กิจกรรมเปิดตัวผลิตภัณฑ์ใหม่" required>
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+          <div>
+            <label>วันที่จัดกิจกรรม</label>
+            <input type="date" name="event_date" value="{{ activity.event_date if activity else '' }}">
+          </div>
+          <div>
+            <label>กำหนดปิดดาวน์โหลด (ไม่บังคับ)</label>
+            <input type="date" name="download_deadline" value="{{ activity.download_deadline if activity else '' }}">
+          </div>
+        </div>
+        <p class="hint" style="margin-bottom:0;">ถ้าตั้งกำหนดปิดดาวน์โหลดไว้ เมื่อเลยวันนั้นแล้ว กิจกรรมจะหายไปจากหน้า ShareSpace ของผู้ใช้งาน (ยังดูได้จากหน้านี้ตามปกติ)</p>
+      </div>
+
+      {% if category %}
+      {# --- กิจกรรมแบบใหม่ (แยกหมวดแล้ว) — แสดงส่วนเดียวตามหมวดของกิจกรรมนี้ --- #}
+      <div class="card" style="margin-top:14px;">
+        <h2 style="margin-top:0;">{{ category_labels.get(category, category) }}</h2>
+        <p class="hint" style="margin-top:-6px;">
+          {% if category == 'marketing' %}มองเห็นได้โดยผู้จัดการและเซล — ใช้สำหรับสื่อโปรโมทหน้าร้าน/โซเชียล
+          {% else %}มองเห็นได้เฉพาะทีมช่างซ่อม (Technician) — ใช้สำหรับเอกสารติดตั้ง/แก้ปัญหาทางเทคนิค{% endif %}
+        </p>
+        <label>คำอธิบาย</label>
+        <textarea name="description" rows="2" placeholder="{% if category == 'marketing' %}เช่น สื่อสำหรับฝ่ายขายและลูกค้า: ภาพสินค้า โบรชัวร์ และวิดีโอ{% else %}เช่น เอกสารสำหรับติดตั้งดูแลระบบ และแก้ปัญหาทางเทคนิค{% endif %}">{{ (activity.marketing_description if category == 'marketing' else activity.technical_description) if activity else '' }}</textarea>
+
+        <label class="dropzone" for="activityFilesInput">
+          <div><b>ลากไฟล์มาวาง หรือเลือกไฟล์</b></div>
+          <div class="hint" style="margin:2px 0 0;">รองรับรูปภาพ, PDF, วิดีโอ, ZIP</div>
+        </label>
+        <input type="file" name="activity_files" id="activityFilesInput" multiple style="display:none;"
+               accept="image/*,video/*,application/pdf,application/zip,application/x-zip-compressed">
+        <div id="activityFilesPreview"></div>
+
+        {% set existing_files = (activity.marketing_files if category == 'marketing' else activity.technical_files) if activity else [] %}
+        {% if existing_files %}
+        <div style="margin-top:10px;">
+          {% for f in existing_files %}
+          <div class="file-row">
+            <span class="file-row-icon">{{ f.filename|file_icon }}</span>
+            <div class="file-row-info">
+              <div class="file-row-name">{{ f.filename }}</div>
+              <div class="hint">{{ f.size_bytes|filesizeformat if f.size_bytes else '-' }}</div>
+            </div>
+            <form method="post" action="/admin/activities/{{ activity.activity_id }}/files/{{ f.file_id }}/delete"
+                  onsubmit="return confirm('ลบไฟล์ {{ f.filename }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="file-row-remove" title="ลบไฟล์นี้">✕</button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% else %}
+      {# --- กิจกรรมเก่าก่อนแยกหมวด (category IS NULL) — คงฟอร์มแบบเดิมสองส่วนไว้ ไม่ให้ข้อมูลเดิมพัง --- #}
+      <div class="card" style="margin-top:14px;">
+        <h2 style="margin-top:0;">01 · Marketing</h2>
+        <p class="hint" style="margin-top:-6px;">มองเห็นได้โดยผู้จัดการและเซล — ใช้สำหรับสื่อโปรโมทหน้าร้าน/โซเชียล</p>
+        <label>คำอธิบายชุดไฟล์ Marketing</label>
+        <textarea name="marketing_description" rows="2">{{ activity.marketing_description if activity else '' }}</textarea>
+
+        <label class="dropzone" for="marketingFilesInput">
+          <div><b>ลากไฟล์ Marketing มาวาง หรือเลือกไฟล์</b></div>
+          <div class="hint" style="margin:2px 0 0;">รองรับรูปภาพ, PDF, วิดีโอ, ZIP</div>
+        </label>
+        <input type="file" name="marketing_files" id="marketingFilesInput" multiple style="display:none;"
+               accept="image/*,video/*,application/pdf,application/zip,application/x-zip-compressed">
+        <div id="marketingFilesPreview"></div>
+
+        {% if activity and activity.marketing_files %}
+        <div style="margin-top:10px;">
+          {% for f in activity.marketing_files %}
+          <div class="file-row">
+            <span class="file-row-icon">{{ f.filename|file_icon }}</span>
+            <div class="file-row-info">
+              <div class="file-row-name">{{ f.filename }}</div>
+              <div class="hint">{{ f.size_bytes|filesizeformat if f.size_bytes else '-' }} · Marketing</div>
+            </div>
+            <form method="post" action="/admin/activities/{{ activity.activity_id }}/files/{{ f.file_id }}/delete"
+                  onsubmit="return confirm('ลบไฟล์ {{ f.filename }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="file-row-remove" title="ลบไฟล์นี้">✕</button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h2 style="margin-top:0;">02 · Technical</h2>
+        <p class="hint" style="margin-top:-6px;">มองเห็นได้เฉพาะทีมช่างซ่อม (Technician) — ใช้สำหรับเอกสารติดตั้ง/แก้ปัญหาทางเทคนิค</p>
+        <label>คำอธิบายชุดไฟล์ Technical</label>
+        <textarea name="technical_description" rows="2">{{ activity.technical_description if activity else '' }}</textarea>
+
+        <label class="dropzone" for="technicalFilesInput">
+          <div><b>ลากไฟล์ Technical มาวาง หรือเลือกไฟล์</b></div>
+          <div class="hint" style="margin:2px 0 0;">เข้าถึงได้เฉพาะทีมเทคนิคที่ได้รับสิทธิ์</div>
+        </label>
+        <input type="file" name="technical_files" id="technicalFilesInput" multiple style="display:none;"
+               accept="image/*,video/*,application/pdf,application/zip,application/x-zip-compressed">
+        <div id="technicalFilesPreview"></div>
+
+        {% if activity and activity.technical_files %}
+        <div style="margin-top:10px;">
+          {% for f in activity.technical_files %}
+          <div class="file-row">
+            <span class="file-row-icon">{{ f.filename|file_icon }}</span>
+            <div class="file-row-info">
+              <div class="file-row-name">{{ f.filename }}</div>
+              <div class="hint">{{ f.size_bytes|filesizeformat if f.size_bytes else '-' }} · Technical</div>
+            </div>
+            <form method="post" action="/admin/activities/{{ activity.activity_id }}/files/{{ f.file_id }}/delete"
+                  onsubmit="return confirm('ลบไฟล์ {{ f.filename }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="file-row-remove" title="ลบไฟล์นี้">✕</button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div>
+      <div class="card">
+        <h3 style="margin-top:0;">สถานะปัจจุบัน</h3>
+        {% if activity and activity.status == 'published' %}
+        <span class="tag" style="background:#e8f5e9; color:#2e7d32;">✅ เผยแพร่แล้ว</span>
+        <p class="hint">กิจกรรมนี้เผยแพร่อยู่ — ผู้ใช้งานที่มีสิทธิ์เห็นไฟล์ในหน้า ShareSpace แล้ว การแก้ไข/เพิ่มไฟล์จะมีผลทันทีที่บันทึก</p>
+        {% else %}
+        <span class="tag" style="background:var(--amber-bg); color:var(--amber-fg);">🟡 ฉบับร่าง</span>
+        <p class="hint">กิจกรรมนี้ยังไม่ปรากฏแก่ผู้ใช้งาน จนกว่าจะกด "เผยแพร่กิจกรรม"</p>
+        {% endif %}
+        <button type="submit" class="btn" style="width:100%; margin-bottom:8px;" onclick="document.getElementById('activityFormAction').value='publish';">🚀 เผยแพร่กิจกรรม</button>
+        <button type="submit" class="btn secondary" style="width:100%;" onclick="document.getElementById('activityFormAction').value='draft';">💾 บันทึกร่าง</button>
+
+        <hr style="margin:14px 0; border:none; border-top:1px solid var(--border-soft);">
+        <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400;">
+          <input type="checkbox" name="is_public" value="1" style="width:auto; margin-top:3px;"
+                 {% if activity and activity.is_public %}checked{% endif %}>
+          <span>🌐 เปิดลิงก์สาธารณะ — ใครก็ตามที่มีลิงก์ดู/ดาวน์โหลดไฟล์ได้ทั้ง Marketing และ Technical โดยไม่ต้องเข้าสู่ระบบ</span>
+        </label>
+        {% if activity and activity.is_public %}
+        <div class="file-row" style="margin-top:8px;">
+          <span class="file-row-icon">🔗</span>
+          <div class="file-row-info">
+            <div class="file-row-name" id="publicLinkText">/s/{{ activity.activity_id }}</div>
+            <div class="hint">ลิงก์สาธารณะของกิจกรรมนี้ (ใช้ได้ก็ต่อเมื่อเผยแพร่แล้วและยังไม่เลยกำหนดปิดดาวน์โหลด)</div>
+          </div>
+          <button type="button" class="btn small secondary" onclick="copyPublicLink({{ activity.activity_id }})">คัดลอก</button>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h4 style="margin-top:0;">การมองเห็นไฟล์</h4>
+        {% if category %}
+        <ul style="padding-left:18px; margin:0; font-size:13.5px; line-height:1.7;">
+          {% if category == 'marketing' %}
+          <li><b>Marketing</b> — ผู้จัดการและเซลเห็น/ดาวน์โหลดได้</li>
+          {% else %}
+          <li><b>Technical</b> — เห็นเฉพาะทีมช่างซ่อมที่มีสิทธิ์</li>
+          {% endif %}
+          <li>กิจกรรมนี้แยกหมวดแล้ว จะไม่ปนกับอีกหมวดหนึ่ง</li>
+        </ul>
+        {% else %}
+        <ul style="padding-left:18px; margin:0; font-size:13.5px; line-height:1.7;">
+          <li><b>Marketing</b> — ผู้จัดการและเซลเห็น/ดาวน์โหลดได้</li>
+          <li><b>Technical</b> — เห็นเฉพาะทีมช่างซ่อมที่มีสิทธิ์</li>
+          <li>กิจกรรมนี้เป็นแบบเก่า มีทั้งสองหมวดอยู่ในกิจกรรมเดียวกัน</li>
+        </ul>
+        {% endif %}
+      </div>
+
+      <div class="card" style="margin-top:14px; background:var(--bg);">
+        <p class="hint" style="margin:0;">💡 ก่อนเผยแพร่ ตรวจสอบข้อมูลของแต่ละกลุ่มให้เรียบร้อย</p>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+  function wireDropzone(zoneInputId, previewId) {
+    var input = document.getElementById(zoneInputId);
+    var zone = document.querySelector('label[for="' + zoneInputId + '"]');
+    var preview = document.getElementById(previewId);
+    if (!input || !zone) return;
+    var staged = [];
+
+    function rebuildInputFiles() {
+      var dt = new DataTransfer();
+      staged.forEach(function (f) { dt.items.add(f); });
+      input.files = dt.files;
+    }
+
+    function renderPreview() {
+      preview.innerHTML = '';
+      staged.forEach(function (f, idx) {
+        var row = document.createElement('div');
+        row.className = 'file-row';
+        row.innerHTML = '<span class="file-row-icon">📎</span>' +
+          '<div class="file-row-info"><div class="file-row-name">' + f.name + '</div>' +
+          '<div class="hint">' + (f.size / 1024 / 1024).toFixed(2) + ' MB · รอบันทึก</div></div>';
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'file-row-remove';
+        removeBtn.title = 'ยกเลิกไฟล์นี้';
+        removeBtn.textContent = '✕';
+        removeBtn.onclick = function () {
+          staged.splice(idx, 1);
+          rebuildInputFiles();
+          renderPreview();
+        };
+        row.appendChild(removeBtn);
+        preview.appendChild(row);
+      });
+    }
+
+    function addFiles(fileList) {
+      Array.prototype.forEach.call(fileList, function (f) { staged.push(f); });
+      rebuildInputFiles();
+      renderPreview();
+    }
+
+    zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function () { zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function (e) {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        addFiles(e.dataTransfer.files);
+      }
+    });
+    input.addEventListener('click', function (e) {
+      // ป้องกันเปิดตัวเลือกไฟล์ซ้ำ (label for= จะกดให้อยู่แล้ว) — เผื่อ browser บาง engine trigger ซ้ำ
+      e.stopPropagation();
+    });
+    input.addEventListener('change', function () {
+      if (input.files && input.files.length) { addFiles(input.files); }
+    });
+  }
+  wireDropzone('activityFilesInput', 'activityFilesPreview');
+  wireDropzone('marketingFilesInput', 'marketingFilesPreview');
+  wireDropzone('technicalFilesInput', 'technicalFilesPreview');
+
+  function copyPublicLink(activityId) {
+    var url = window.location.origin + '/s/' + activityId;
+    navigator.clipboard.writeText(url).then(function () {
+      alert('คัดลอกลิงก์แล้ว: ' + url);
+    }).catch(function () {
+      prompt('คัดลอกลิงก์นี้:', url);
+    });
+  }
+</script>
+{% endblock %}

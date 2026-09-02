@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}คำสั่งซื้อจากศูนย์บริการ{% endblock %}
+{% block content %}
+<h1>📦 คำสั่งซื้อสินค้า/อะไหล่จากศูนย์บริการ</h1>
+<p class="hint" style="margin-top:-6px;">คิวคำสั่งซื้อที่ศูนย์บริการเติมสต็อกเครื่องพิมพ์ 3 มิติ, เส้นพลาสติก/วัสดุ, และอะไหล่ — ดำเนินการและยืนยันจัดส่งพร้อมเลขติดตามพัสดุได้ที่นี่ หรือแอดมิน (HQ) จะสร้างคำสั่งจัดส่งไปยังศูนย์บริการเองโดยตรงก็ได้</p>
+<p><a href="/admin/restock-orders/new" class="btn small">+ สร้างคำสั่งซื้อ/จัดส่งใหม่</a></p>
+
+<div class="card">
+  {% if not orders %}
+  <p class="hint">ยังไม่มีคำสั่งซื้อจากศูนย์บริการใดเลย</p>
+  {% else %}
+  <table class="sortable">
+    <tr><th>คำสั่งซื้อ</th><th>ศูนย์บริการ</th><th>ผู้สั่งซื้อ</th><th>สถานะ</th><th>รายการสินค้า</th><th>เลขติดตามพัสดุ</th><th>สั่งซื้อเมื่อ</th><th data-no-sort>จัดการ</th></tr>
+    {% for o in orders %}
+    <tr>
+      <td>#{{ o.order_id }}</td>
+      <td>{{ o.center_name }}</td>
+      <td>{{ o.requested_by_name }}</td>
+      <td>{{ o.status_label }}</td>
+      <td>
+        <ul style="margin:0; padding-left:16px;">
+          {% for it in o.order_items %}
+          <li>{{ it.part_name }} × {{ it.quantity_requested }}</li>
+          {% endfor %}
+        </ul>
+      </td>
+      <td>{{ o.tracking_number or '—' }}</td>
+      <td>{{ o.created_at }}</td>
+      <td style="white-space:nowrap;">
+        <a href="/admin/restock-orders/{{ o.order_id }}" class="btn small secondary">รายละเอียด/แก้ไข</a>
+        <a href="/admin/restock-orders/{{ o.order_id }}/delivery-note" target="_blank" class="btn small secondary">🧾 ใบส่งสินค้า</a>
+        {% if o.status == 'requested' %}
+        <form method="post" action="/admin/restock-orders/{{ o.order_id }}/process" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small secondary" type="submit">📦 เริ่มดำเนินการ</button>
+        </form>
+        {% endif %}
+        {% if o.status in ['requested', 'processing'] %}
+        <button class="btn small" type="button" onclick="openShipForm({{ o.order_id }})">🚚 ยืนยันจัดส่ง</button>
+        <form method="post" action="/admin/restock-orders/{{ o.order_id }}/cancel" style="display:inline;"
+              onsubmit="return confirm('ยกเลิกคำสั่งซื้อนี้?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ยกเลิก</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+<div id="shipOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeShipForm();">
+  <div class="modal-box" style="max-width:420px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">🚚 ยืนยันจัดส่ง</h3>
+      <button type="button" class="btn small secondary" onclick="closeShipForm()">ปิด ✕</button>
+    </div>
+    <form method="post" id="shipForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>หมายเลขติดตามพัสดุ (ไม่บังคับ)</label>
+      <input type="text" name="tracking_number" placeholder="เช่น TH1234567890">
+      <button class="btn" type="submit">ยืนยันจัดส่ง</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openShipForm(orderId) {
+    document.getElementById('shipForm').action = '/admin/restock-orders/' + orderId + '/ship';
+    document.getElementById('shipOverlay').style.display = 'flex';
+  }
+  function closeShipForm() {
+    document.getElementById('shipOverlay').style.display = 'none';
+  }
+</script>
+{% endblock %}

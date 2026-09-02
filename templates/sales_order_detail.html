@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}รายการขาย #{{ order.order_id }}{% endblock %}
+{% block content %}
+<h1>🧾 รายการขาย #{{ order.order_id }}</h1>
+<p><a href="/sales/orders">&larr; กลับไปรายการขายทั้งหมด</a></p>
+
+{% if order.cancelled_at %}
+<div class="card" style="border-left:4px solid #991b1b; background:#fef2f2;">
+  <p style="margin:0;">
+    <span class="tag" style="background:#fee2e2; color:#991b1b;">🚫 ยกเลิกแล้ว</span>
+    โดย {{ order.cancelled_by_name or '-' }} เมื่อ {{ order.cancelled_at }}
+    {% if order.cancel_reason %} — เหตุผล: {{ order.cancel_reason }}{% endif %}
+  </p>
+  <p class="hint" style="margin-top:6px;">บิลนี้ถูกยกเลิกแล้ว ไม่นับรวมในยอดขาย/รายงาน และแก้ไข/พิมพ์เอกสารไม่ได้อีก — manager/sales จะไม่เห็นรายการนี้ในหน้ารายการขาย</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="grid">
+    <div><label>วันที่</label><div>{{ order.created_at }}</div></div>
+    <div><label>ศูนย์บริการ</label><div>{{ order.center_name }}</div></div>
+    <div><label>พนักงานขาย</label><div>{{ order.sold_by_name }}</div></div>
+    <div><label>ลูกค้า</label><div>{{ order.customer_name or '— หน้าร้าน —' }}</div></div>
+    <div><label>ช่องทางการขาย</label><div>{{ order.channel or 'หน้าร้าน' }}</div></div>
+  </div>
+  {% if order.notes %}<p class="hint">หมายเหตุ: {{ order.notes }}</p>{% endif %}
+</div>
+
+<div class="card">
+  {% if order.cancelled_at %}
+  {% if order.payment_confirmed_at %}
+  <p class="hint">ก่อนถูกยกเลิก บิลนี้เคยยืนยันรับชำระเงินแล้ว — ออกเป็น{{ payment_doc_type_labels.get(order.payment_doc_type, order.payment_doc_type) }}
+    ยืนยันโดย {{ order.payment_confirmed_by_name or '-' }} เมื่อ {{ order.payment_confirmed_at }} (พิมพ์เอกสารซ้ำไม่ได้อีกแล้ว)</p>
+  {% else %}
+  <p class="hint">บิลนี้ถูกยกเลิกก่อนที่จะยืนยันรับชำระเงิน</p>
+  {% endif %}
+  {% elif order.payment_confirmed_at %}
+  <p>
+    <span class="ok">✅ ชำระเงินแล้ว</span>
+    — ออกเป็น{{ payment_doc_type_labels.get(order.payment_doc_type, order.payment_doc_type) }}
+    ยืนยันโดย {{ order.payment_confirmed_by_name or '-' }} เมื่อ {{ order.payment_confirmed_at }}
+  </p>
+  <a class="btn small" href="/sales/order/{{ order.order_id }}/{{ order.payment_doc_type.replace('_', '-') }}/print" target="_blank">
+    🖨️ พิมพ์{{ payment_doc_type_labels.get(order.payment_doc_type, order.payment_doc_type) }}
+  </a>
+  {% if order.customer_id %}
+  <form method="get" action="/sales/order/{{ order.order_id }}/quote/print" target="_blank"
+        style="display:inline-flex; align-items:center; gap:6px; vertical-align:middle;">
+    <label style="display:inline-flex; align-items:center; gap:4px; font-weight:400; font-size:13px; margin:0; white-space:nowrap;">
+      <input type="checkbox" name="vat" value="1" style="width:auto; margin:0;"> บิล VAT
+    </label>
+    <button class="btn small secondary" type="submit">📄 สร้างใบเสนอราคา</button>
+  </form>
+  {% endif %}
+  {% else %}
+  <p class="hint">ยังไม่ได้ยืนยันรับชำระเงิน — กดปุ่มด้านล่างเพื่อออกเอกสารและยืนยันยอดชำระเข้าระบบ
+    (หลังยืนยันจะแก้ไข/ลบรายการสินค้าในบิลนี้ไม่ได้อีก)</p>
+  <form method="post" action="/sales/order/{{ order.order_id }}/confirm-payment" style="display:inline;"
+        onsubmit="return confirm('ยืนยันรับชำระเงิน {{ '%.0f'|format(total_amount) }} บาท เป็นเงินสด และออกบิลเงินสด?\n\nหลังยืนยันจะแก้ไข/ลบรายการสินค้าในบิลนี้ไม่ได้อีก');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="doc_type" value="cash_bill">
+    <button class="btn small" type="submit">💵 บิลเงินสด</button>
+  </form>
+  {% if order.customer_id %}
+  <form method="get" action="/sales/order/{{ order.order_id }}/quote/print" target="_blank"
+        style="display:inline-flex; align-items:center; gap:6px; vertical-align:middle;">
+    <label style="display:inline-flex; align-items:center; gap:4px; font-weight:400; font-size:13px; margin:0; white-space:nowrap;">
+      <input type="checkbox" name="vat" value="1" style="width:auto; margin:0;"> บิล VAT
+    </label>
+    <button class="btn small secondary" type="submit">📄 สร้างใบเสนอราคา</button>
+  </form>
+  <form method="post" action="/sales/order/{{ order.order_id }}/confirm-payment" style="display:inline;"
+        onsubmit="return confirm('ยืนยันรับชำระเงิน {{ '%.0f'|format(total_amount) }} บาท และออกใบกำกับภาษี?\n\nหลังยืนยันจะแก้ไข/ลบรายการสินค้าในบิลนี้ไม่ได้อีก');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="doc_type" value="tax_invoice">
+    <button class="btn small secondary" type="submit">🧾 ใบกำกับภาษี</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>
+
+<div class="card">
+  <table class="sortable">
+    <tr>
+      <th>สินค้า</th><th>SKU</th><th>จำนวน</th><th>ราคา/หน่วย</th><th>รวม</th>
+      <th>ค่าคอมมิชชั่น/หน่วย</th><th>รวมคอมมิชชั่น</th><th data-no-sort></th>
+    </tr>
+    {% for it in items %}
+    <tr data-pair-id="item-edit-row-{{ it.item_id }}">
+      <td>{{ it.part_name }}</td>
+      <td>{{ it.part_sku }}</td>
+      <td>{{ it.quantity }}</td>
+      <td>{{ "%.0f"|format(it.unit_price) }} บาท</td>
+      <td>{{ "%.0f"|format(it.quantity * it.unit_price) }} บาท</td>
+      <td>{{ "%.0f"|format(it.commission_fee) }} บาท</td>
+      <td>{{ "%.0f"|format(it.quantity * it.commission_fee) }} บาท</td>
+      <td style="white-space:nowrap;">
+        {% if order.cancelled_at %}
+        <span class="hint">ยกเลิกแล้ว</span>
+        {% elif order.payment_confirmed_at %}
+        <span class="hint">ชำระแล้ว</span>
+        {% else %}
+        <button class="btn small secondary" type="button" onclick="toggleItemEdit({{ it.item_id }})">แก้ไข</button>
+        {% if user.role in ('admin', 'manager') %}
+        <form method="post" action="/sales/order/{{ order.order_id }}/item/{{ it.item_id }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบรายการ {{ it.part_name }} ออกจากบิลนี้? สต็อกจะถูกคืนกลับให้อัตโนมัติ');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+        {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    <tr id="item-edit-row-{{ it.item_id }}" style="display:none; background:#f7f9fc;">
+      <td colspan="8">
+        <form method="post" action="/sales/order/{{ order.order_id }}/item/{{ it.item_id }}/edit" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div><label>จำนวน</label><input type="number" name="quantity" value="{{ it.quantity }}" min="1" style="width:90px; margin:0;"></div>
+          <div><label>ราคาขาย/หน่วย (บาท)</label><input type="number" name="unit_price" value="{{ it.unit_price }}" min="0" step="0.01" style="width:120px; margin:0;"></div>
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleItemEdit({{ it.item_id }})">ยกเลิก</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8">ไม่มีรายการสินค้าในบิลนี้แล้ว</td></tr>
+    {% endfor %}
+    <tr style="font-weight:bold;">
+      <td colspan="4" style="text-align:right;">รวมทั้งหมด</td>
+      <td>{{ "%.0f"|format(total_amount) }} บาท</td>
+      <td></td>
+      <td>{{ "%.0f"|format(total_commission) }} บาท</td>
+      <td></td>
+    </tr>
+  </table>
+  <p class="hint">แก้ไขจำนวน/ราคาต่อรายการได้ — สต็อกจะถูกปรับตามส่วนต่างอัตโนมัติ · การลบรายการหรือลบทั้งบิล ทำได้เฉพาะแอดมิน/ผู้จัดการเท่านั้น
+    {% if order.cancelled_at %} · บิลนี้ถูกยกเลิกแล้ว แก้ไข/ลบรายการหรือทั้งบิลไม่ได้อีก
+    {% elif order.payment_confirmed_at %} · บิลนี้ยืนยันรับชำระเงินแล้ว แก้ไข/ลบรายการหรือทั้งบิลไม่ได้อีก{% endif %}</p>
+</div>
+
+{% if user.role in ('admin', 'manager') and not order.payment_confirmed_at and not order.cancelled_at %}
+<div class="card">
+  <form method="post" action="/sales/order/{{ order.order_id }}/delete"
+        onsubmit="return confirm('ลบรายการขายบิลนี้ทั้งหมด? สต็อกทุกรายการในบิลจะถูกคืนกลับให้อัตโนมัติ และไม่สามารถกู้คืนได้');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn danger" type="submit">🗑️ ลบรายการขายทั้งบิลนี้</button>
+  </form>
+</div>
+{% endif %}
+
+{% if user.role == 'admin' and not order.cancelled_at %}
+<div class="card">
+  <h2>ยกเลิกรายการขาย</h2>
+  <p class="hint">ยกเลิกได้แม้ยืนยันรับชำระเงินไปแล้ว — ต่างจากการลบตรงที่ยังเก็บประวัติบิลนี้ไว้ตรวจสอบย้อนหลังได้
+    (ไม่นับรวมในยอดขาย/รายงานอีกต่อไป และ manager/sales จะไม่เห็นรายการนี้) สต็อกทุกรายการในบิลจะถูกคืนกลับให้อัตโนมัติ</p>
+  <form method="post" action="/sales/order/{{ order.order_id }}/cancel"
+        onsubmit="return confirm('ยกเลิกรายการขายบิลนี้ทั้งหมด? สต็อกทุกรายการในบิลจะถูกคืนกลับให้อัตโนมัติ\n\nแตกต่างจากการลบตรงที่ยังเก็บประวัติบิลนี้ไว้ ย้อนกลับ (ยกเลิกการยกเลิก) ไม่ได้');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div><label>เหตุผลการยกเลิก (ไม่บังคับ)</label><textarea name="cancel_reason" rows="2" placeholder="เช่น ลูกค้าคืนสินค้า, บันทึกรายการผิด"></textarea></div>
+    <button class="btn danger" type="submit">🚫 ยกเลิกรายการขายทั้งบิลนี้</button>
+  </form>
+</div>
+{% endif %}
+
+<script>
+  function toggleItemEdit(itemId) {
+    var row = document.getElementById('item-edit-row-' + itemId);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+</script>
+{% endblock %}

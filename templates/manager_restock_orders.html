@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}สั่งซื้อสินค้าจาก HQ{% endblock %}
+{% block content %}
+<h1>📦 สั่งซื้อสินค้า/อะไหล่จาก HQ</h1>
+<p class="hint" style="margin-top:-6px;">เติมสต็อกเครื่องพิมพ์ 3 มิติ, เส้นพลาสติก/วัสดุ, หรืออะไหล่ — ส่งคำสั่งซื้อให้สำนักงานใหญ่ (HQ) ดำเนินการและติดตามสถานะการจัดส่งได้ที่นี่</p>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>+ สร้างคำสั่งซื้อใหม่</h2>
+  {% if parts %}
+  <form method="post" action="/manager/restock-orders/new" id="restockForm" onsubmit="return validateRestockForm()">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>หมายเหตุ (ไม่บังคับ)</label>
+    <input type="text" name="notes" placeholder="เช่น ต้องการด่วนภายในสัปดาห์นี้">
+
+    <datalist id="restockPartsList">
+      {% for p in parts %}
+      <option value="{{ p.part_name }} ({{ p.part_sku }})"></option>
+      {% endfor %}
+    </datalist>
+
+    <table id="restockLinesTable">
+      <thead><tr><th>สินค้า (พิมพ์เพื่อค้นหา)</th><th>สต็อกปัจจุบัน</th><th>จำนวนที่สั่งเพิ่ม</th><th></th></tr></thead>
+      <tbody id="restockLinesBody">
+        <tr class="restock-line" data-idx="1">
+          <td>
+            <input type="text" list="restockPartsList" id="rlabel_1" oninput="onRestockPartInput(1)"
+                   placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา หรือคลิกดูรายการทั้งหมด" style="min-width:240px;">
+            <input type="hidden" name="sku_1" id="rsku_1">
+          </td>
+          <td id="rstock_1" class="hint">-</td>
+          <td><input type="number" name="qty_1" id="rqty_1" min="1" value="1" style="width:90px; margin:0;"></td>
+          <td><button type="button" class="btn small danger" onclick="removeRestockLine(1)">ลบ</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:10px 0;">
+      <button type="button" class="btn secondary" onclick="addRestockLine()">+ เพิ่มรายการสินค้า</button>
+    </p>
+    <button class="btn" type="submit">ส่งคำสั่งซื้อ</button>
+  </form>
+  {% else %}
+  <p class="hint">ยังไม่มีสินค้าในคลังของศูนย์นี้ — เพิ่มสินค้าได้ที่หน้า "คลังสินค้า" ก่อน แล้วค่อยสั่งซื้อเพิ่มที่นี่</p>
+  {% endif %}
+</div>
+
+<template id="restock-line-template">
+  <tr class="restock-line" data-idx="__IDX__">
+    <td>
+      <input type="text" list="restockPartsList" id="rlabel___IDX__" oninput="onRestockPartInput(__IDX__)"
+             placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา หรือคลิกดูรายการทั้งหมด" style="min-width:240px;">
+      <input type="hidden" name="sku___IDX__" id="rsku___IDX__">
+    </td>
+    <td id="rstock___IDX__" class="hint">-</td>
+    <td><input type="number" name="qty___IDX__" id="rqty___IDX__" min="1" value="1" style="width:90px; margin:0;"></td>
+    <td><button type="button" class="btn small danger" onclick="removeRestockLine(__IDX__)">ลบ</button></td>
+  </tr>
+</template>
+
+<h2 style="margin-top:24px;">📋 คำสั่งซื้อของศูนย์นี้</h2>
+<div class="card">
+  {% if not orders %}
+  <p class="hint">ยังไม่เคยสั่งซื้อสินค้าจาก HQ</p>
+  {% else %}
+  <table class="sortable">
+    <tr><th>คำสั่งซื้อ</th><th>สถานะ</th><th>รายการสินค้า</th><th>เลขติดตามพัสดุ</th><th>สั่งซื้อเมื่อ</th><th data-no-sort>จัดการ</th></tr>
+    {% for o in orders %}
+    <tr>
+      <td>#{{ o.order_id }}</td>
+      <td>{{ o.status_label }}</td>
+      <td>
+        <ul style="margin:0; padding-left:16px;">
+          {% for it in o.order_items %}
+          <li>{{ it.part_name }} × {{ it.quantity_requested }}{% if it.quantity_received %} (ได้รับแล้ว {{ it.quantity_received }}){% endif %}</li>
+          {% endfor %}
+        </ul>
+      </td>
+      <td>{{ o.tracking_number or '—' }}</td>
+      <td>{{ o.created_at }}</td>
+      <td style="white-space:nowrap;">
+        {% if o.status == 'shipped' %}
+        <form method="post" action="/manager/restock-orders/{{ o.order_id }}/receive" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small" type="submit">📥 ยืนยันรับของแล้ว</button>
+        </form>
+        {% endif %}
+        {% if o.status in ['requested', 'processing'] %}
+        <form method="post" action="/manager/restock-orders/{{ o.order_id }}/cancel" style="display:inline;"
+              onsubmit="return confirm('ยกเลิกคำสั่งซื้อนี้?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ยกเลิก</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+<script>
+  var RESTOCK_PARTS = {{ parts_for_js|tojson }};
+  var RESTOCK_PARTS_BY_LABEL = {};
+  RESTOCK_PARTS.forEach(function (p) { RESTOCK_PARTS_BY_LABEL[p.label] = p; });
+  var restockLineCounter = 1;
+
+  function onRestockPartInput(idx) {
+    var labelInput = document.getElementById('rlabel_' + idx);
+    var skuInput = document.getElementById('rsku_' + idx);
+    var stockCell = document.getElementById('rstock_' + idx);
+    var part = RESTOCK_PARTS_BY_LABEL[labelInput.value];
+    if (part) {
+      skuInput.value = part.sku;
+      stockCell.textContent = part.stock + ' ชิ้น';
+    } else {
+      skuInput.value = '';
+      stockCell.textContent = '-';
+    }
+  }
+
+  function addRestockLine() {
+    restockLineCounter++;
+    var html = document.getElementById('restock-line-template').innerHTML.split('__IDX__').join(restockLineCounter);
+    var wrap = document.createElement('tbody');
+    wrap.innerHTML = html;
+    document.getElementById('restockLinesBody').appendChild(wrap.querySelector('tr'));
+  }
+
+  function removeRestockLine(idx) {
+    var rows = document.querySelectorAll('#restockLinesBody .restock-line');
+    if (rows.length <= 1) {
+      alert('ต้องมีอย่างน้อย 1 รายการ');
+      return;
+    }
+    var row = document.querySelector('.restock-line[data-idx="' + idx + '"]');
+    if (row) row.remove();
+  }
+
+  function validateRestockForm() {
+    var rows = document.querySelectorAll('#restockLinesBody .restock-line');
+    var hasValid = false;
+    for (var i = 0; i < rows.length; i++) {
+      var idx = rows[i].dataset.idx;
+      var sku = document.getElementById('rsku_' + idx).value;
+      var label = document.getElementById('rlabel_' + idx).value.trim();
+      var qty = parseFloat(document.getElementById('rqty_' + idx).value) || 0;
+      if (label && !sku) {
+        alert('กรุณาเลือกสินค้าจากรายการค้นหาให้ตรง (บรรทัดที่ ' + idx + ')');
+        return false;
+      }
+      if (sku && qty > 0) hasValid = true;
+    }
+    if (!hasValid) {
+      alert('กรุณาเพิ่มอย่างน้อย 1 รายการสินค้า พร้อมเลือกสินค้าและระบุจำนวน');
+      return false;
+    }
+    return true;
+  }
+</script>
+{% endblock %}

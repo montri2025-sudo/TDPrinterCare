@@ -1,0 +1,61 @@
+{% macro payment_section(t, payments, is_staff, csrf_token) %}
+<div class="card">
+  <h2>💳 การชำระเงิน</h2>
+  {% if payments %}
+  <table class="sortable">
+    <tr>
+      <th>วันที่แจ้ง</th><th>จำนวนเงิน</th><th data-no-sort>สลิป</th><th>แจ้งโดย</th><th>สถานะ</th><th>ผู้ตรวจสอบ</th>
+      {% if is_staff %}<th data-no-sort>จัดการ</th>{% endif %}
+    </tr>
+    {% for p in payments %}
+    <tr>
+      <td>{{ p.created_at }}</td>
+      <td>{{ "%.0f"|format(p.amount) }} บาท</td>
+      <td>
+        <a href="/media/{{ t.ticket_id }}/{{ p.slip_filename }}" target="_blank">
+          <img src="/media/{{ t.ticket_id }}/{{ p.slip_filename }}" alt="สลิปการโอนเงิน"
+               style="width:48px; height:48px; object-fit:cover; border-radius:6px; border:1px solid var(--border); display:block;">
+        </a>
+      </td>
+      <td>{{ p.notified_by_name or '-' }}</td>
+      <td>
+        {% if p.status == 'pending' %}
+        <span class="badge Waiting-for-Parts">⏳ รอตรวจสอบ</span>
+        {% elif p.status == 'confirmed' %}
+        <span class="badge Resolved-Closed">✅ ยืนยันแล้ว</span>
+        {% else %}
+        <span class="badge" style="background:var(--red-bg); color:var(--red-fg);">❌ ปฏิเสธ</span>
+        {% endif %}
+      </td>
+      <td>{{ p.confirmed_by_name or '-' }}{% if p.confirmed_at %}<br><span class="hint">{{ p.confirmed_at }}</span>{% endif %}</td>
+      {% if is_staff %}
+      <td style="white-space:nowrap;">
+        {% if p.status == 'pending' %}
+        <form method="post" action="/ticket/{{ t.ticket_id }}/payments/{{ p.payment_id }}/confirm" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small" type="submit">✅ ยืนยัน</button>
+        </form>
+        <form method="post" action="/ticket/{{ t.ticket_id }}/payments/{{ p.payment_id }}/reject" style="display:inline;"
+              onsubmit="return confirm('ปฏิเสธการแจ้งชำระเงินนี้?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">❌ ปฏิเสธ</button>
+        </form>
+        {% else %}
+        -
+        {% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีการแจ้งชำระเงินสำหรับตั๋วนี้</p>
+  {% endif %}
+  <p style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="/ticket/{{ t.ticket_id }}/pay" class="btn small secondary">💳 แจ้งชำระเงิน / อัปโหลดสลิป</a>
+    {% if payments|selectattr('status', 'equalto', 'confirmed')|list %}
+    <a href="/ticket/{{ t.ticket_id }}/receipt/print" target="_blank" class="btn small secondary">🧾 พิมพ์ใบเสร็จ</a>
+    {% endif %}
+  </p>
+</div>
+{% endmacro %}

@@ -1,0 +1,172 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tdprinter-postgres
+    restart: unless-stopped
+    environment:
+      # หมายเหตุ: ตัวแปรของ image postgres เอง (POSTGRES_*) ต่างจากตัวแปรที่แอปใช้เชื่อมต่อ (PG_*
+      # ด้านล่างใน service tdprinter-care) — ค่าต้องตรงกันแต่ชื่อตัวแปรต่างกันเพราะเป็นคนละ image
+      - POSTGRES_USER=${PG_USER:-tdprinter}
+      - POSTGRES_PASSWORD=${PG_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+      - POSTGRES_DB=${PG_DATABASE:-tdprinter_care}
+    volumes:
+      # persist PostgreSQL's data directory so data survives container recreation
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-tdprinter} -d ${PG_DATABASE:-tdprinter_care}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      # เชื่อมเฉพาะ network ภายใน (default) ให้คุยกับ container แอปได้เท่านั้น —
+      # ไม่ต่อออก odoo-network โดยตรง เพื่อไม่ให้ฐานข้อมูลถูกมองเห็นจาก service อื่นบน network นั้น
+      - default
+
+  # --- Odoo (self-hosted) — ไม่บังคับ ใช้สำหรับซิงก์ข้อมูลลูกค้าไป Odoo (ดูหัวข้อ ODOO_* ด้านล่าง) ---
+  # ถ้ายังไม่พร้อมใช้ Odoo ตอนนี้ คอมเมนต์ service odoo-db/odoo ทั้งสองออกได้เลย แอปหลัก (tdprinter-care)
+  # จะยังทำงานได้ปกติทุกอย่าง (ฟีเจอร์ซิงก์ Odoo จะแค่ข้ามไปเงียบๆ ถ้าไม่ได้ตั้งค่า ODOO_URL)
+  odoo-db:
+    image: postgres:16-alpine
+    container_name: tdprinter-odoo-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${ODOO_DB_USER:-odoo}
+      - POSTGRES_PASSWORD=${ODOO_DB_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+      - POSTGRES_DB=postgres
+    volumes:
+      # ฐานข้อมูลของ Odoo เอง — แยกเป็นคนละ container/volume จาก postgres ของแอปหลักด้านบน เพราะ
+      # Odoo ต้องการสิทธิ์ superuser บน DB ของตัวเอง (ใช้สร้าง/ลบฐานข้อมูลผ่านหน้า database manager ได้)
+      - ./odoo-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ODOO_DB_USER:-odoo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+
+  odoo:
+    build:
+      context: ./odoo
+      # image ทางการของ Odoo + wrapper บางๆ ที่ตั้งค่า admin_passwd (Master Password) ให้อัตโนมัติจาก
+      # ODOO_MASTER_PASSWORD ทุกครั้งที่สตาร์ท (ดู odoo/Dockerfile, odoo/entrypoint-wrapper.sh) —
+      # ทำให้รหัสผ่านนี้ "คงที่เสมอ" ไม่ว่าจะ deploy ครั้งแรกหรือย้ายไปเซิร์ฟเวอร์ใหม่ก็ตาม ไม่ต้องเข้า
+      # เว็บตั้งเองรอบแรกเหมือน Odoo เปล่าๆ
+    image: tdprinter-odoo:latest
+    container_name: tdprinter-odoo
+    restart: unless-stopped
+    depends_on:
+      odoo-db:
+        condition: service_healthy
+    environment:
+      - HOST=odoo-db
+      - USER=${ODOO_DB_USER:-odoo}
+      - PASSWORD=${ODOO_DB_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+      # Master Password ของหน้า Database Manager (/web/database/manager) — ใช้ตอนสร้าง/ลบ/สำรอง
+      # ฐานข้อมูล Odoo ตั้งค่าที่นี่แทนการเข้าไปตั้งผ่านหน้าเว็บครั้งแรก เพื่อให้ค่าเดิมเสมอทุกครั้งที่ deploy/ย้ายเซิร์ฟเวอร์
+      - ODOO_MASTER_PASSWORD=${ODOO_MASTER_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+      # ถ้าใช้ reverse proxy อัตโนมัติ (nginx-proxy/jwilder) แบบเดียวกับ tdprinter-care ด้านล่าง —
+      # ตั้งโดเมนย่อยสำหรับเข้าหน้าเว็บ Odoo จากเบราว์เซอร์ได้ที่นี่ (ไม่บังคับ ลบทิ้งได้ถ้าไม่ได้ใช้)
+      - VIRTUAL_HOST=${ODOO_VIRTUAL_HOST:-}
+      - VIRTUAL_PORT=8069
+    volumes:
+      - ./odoo-data:/var/lib/odoo    # persist attachments/filestore ของ Odoo
+    networks:
+      # default = ให้ tdprinter-care เรียก XML-RPC เข้ามาที่ http://odoo:8069 ได้โดยตรงภายใน docker network
+      # (ไม่ต้องผ่าน reverse proxy) / odoo-network = ให้ reverse proxy บนเครื่องเดียวกัน route โดเมนย่อย
+      # (เช่น odoo.tdprinter.com ผ่าน VIRTUAL_HOST ด้านบน) มาที่ container นี้ได้ด้วย (ไม่บังคับ)
+      - default
+      - odoo-network
+
+  tdprinter-care:
+    build:
+      context: .
+      # to build directly from GitHub instead of this local checkout, swap the
+      # line above for:  context: git@github.com:montri2025-sudo/TDPrinterCare.git
+    image: tdprinter-care:latest
+    container_name: tdprinter-care
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - PORT=8000
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=${PG_USER:-tdprinter}
+      - PG_PASSWORD=${PG_PASSWORD:?ต้องตั้งค่าใน .env ก่อน — ดู .env.example}
+      - PG_DATABASE=${PG_DATABASE:-tdprinter_care}
+      # ปิดบัญชีทดสอบ/ข้อมูลตัวอย่างตอน deploy จริง ตั้งเป็น 1 เฉพาะรอบแรกที่ยังไม่มี admin
+      # แล้วค่อยตั้งกลับเป็น 0 หรือใส่ INITIAL_ADMIN_USERNAME/PASSWORD แทนถ้าไม่อยากได้บัญชีทดสอบเลย
+      - SEED_DEMO_DATA=${SEED_DEMO_DATA:-0}
+      - INITIAL_ADMIN_USERNAME=${INITIAL_ADMIN_USERNAME:-}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:-}
+      # cookie แบบ Secure (ส่งเฉพาะผ่าน HTTPS) — เปิดไว้เสมอเมื่อใช้งานจริงผ่าน reverse proxy ที่ทำ TLS
+      - COOKIE_SECURE=${COOKIE_SECURE:-1}
+      # --- อีเมลแจ้งเตือน (Alert & Notification) — ไม่บังคับ เว้นว่างไว้ได้ ระบบจะแจ้งเตือนในแอป (in-app)
+      # ตามปกติ แค่จะไม่ส่งอีเมลควบคู่ไปด้วยเท่านั้น ใส่ค่าจริงใน .env เพื่อเปิดใช้งานการส่งอีเมล
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-1}
+      # --- สมัครสมาชิก/ล็อกอินด้วย Google หรือ LINE (OAuth2) — ไม่บังคับ เว้นว่างไว้ได้ ถ้าไม่ตั้งค่า
+      # ปุ่มที่หน้า /signup จะขึ้นสถานะ "ยังไม่พร้อมใช้งาน" เฉยๆ (ไม่กระทบฟีเจอร์อื่นของระบบ)
+      # วิธีตั้งค่า:
+      #   1) Google: ไปที่ https://console.cloud.google.com/apis/credentials สร้าง OAuth client ID
+      #      ประเภท "Web application" ใส่ Authorized redirect URI เป็น {PUBLIC_BASE_URL}/auth/google/callback
+      #      แล้วนำ Client ID/Secret มาใส่ GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET ใน .env
+      #   2) LINE: ไปที่ https://developers.line.biz/console/ สร้างช่องทาง "LINE Login" ใส่ Callback URL
+      #      เป็น {PUBLIC_BASE_URL}/auth/line/callback แล้วนำ Channel ID/Secret มาใส่
+      #      LINE_CHANNEL_ID/LINE_CHANNEL_SECRET ใน .env
+      #   3) PUBLIC_BASE_URL ต้องตรงกับโดเมนจริงทุกตัวอักษร (รวม https://) ไม่มี / ปิดท้าย
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://servicepro.tdprinter.com}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - LINE_CHANNEL_ID=${LINE_CHANNEL_ID:-}
+      - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET:-}
+      # --- ซิงก์ข้อมูลลูกค้าไป Odoo (res.partner) — ไม่บังคับ เว้นว่างไว้ได้ ระบบจะข้ามการซิงก์เงียบๆ
+      # ค่าเริ่มต้น ODOO_URL ชี้เข้า container odoo ในไฟล์นี้โดยตรง (http://odoo:8069) ผ่าน docker network
+      # ภายใน — ไม่ต้องเปิดพอร์ตออกอินเทอร์เน็ต ถ้าไม่ได้ใช้ service odoo ในไฟล์นี้ (ใช้ Odoo ที่อื่นแทน)
+      # เปลี่ยน ODOO_URL เป็น URL จริงของ Odoo นั้นได้ — ดูขั้นตอนสร้าง ODOO_DB/ODOO_USERNAME/ODOO_API_KEY
+      # ที่ .env.example / DOCKER.md หัวข้อ "เชื่อมต่อ Odoo"
+      - ODOO_URL=${ODOO_URL:-http://odoo:8069}
+      - ODOO_DB=${ODOO_DB:-}
+      - ODOO_USERNAME=${ODOO_USERNAME:-}
+      - ODOO_API_KEY=${ODOO_API_KEY:-}
+      # ใช้กับ reverse proxy ที่อ่านค่าอัตโนมัติ เช่น nginx-proxy/jwilder — ให้ proxy รู้ว่า
+      # โดเมนนี้ควรวิ่งไปที่ container นี้ พอร์ตไหน (ถ้าไม่ได้ใช้ reverse proxy แบบนี้ ลบทิ้งได้)
+      - VIRTUAL_HOST=servicepro.tdprinter.com
+      - VIRTUAL_PORT=8000
+    volumes:
+      # persist customer/part uploaded photos & videos
+      - ./uploads:/app/uploads
+    networks:
+      # default = คุยกับ container postgres ได้ตามเดิม, odoo-network = network ภายนอกที่มีอยู่แล้ว
+      # (เช่น reverse proxy nginx-proxy/Odoo) เพื่อให้ proxy บน network นั้นมองเห็น/routing มาที่แอปนี้ได้
+      - default
+      - odoo-network
+
+networks:
+  odoo-network:
+    external: true
+
+# หมายเหตุด้านความปลอดภัยก่อนใช้งานจริง:
+#  1. สร้างไฟล์ .env (ก็อปจาก .env.example) แล้วตั้งรหัสผ่าน PostgreSQL ใหม่ทั้งหมด — ห้าม commit
+#     ไฟล์ .env เข้า git เด็ดขาด (มีอยู่ใน .gitignore ให้แล้ว)
+#  2. ตั้ง SEED_DEMO_DATA=0 หลังจากสร้างบัญชีแอดมินจริงแล้ว เพื่อไม่ให้บัญชีทดสอบ (admin1/admin123 ฯลฯ)
+#     ที่รหัสผ่านรู้กันทั่วไปหลงเหลืออยู่ในระบบจริง — หรือใช้ INITIAL_ADMIN_USERNAME/PASSWORD
+#     เพื่อสร้างบัญชีแอดมินคนแรกโดยไม่ต้อง seed ข้อมูลตัวอย่างเลยตั้งแต่แรก
+#  3. ต้องรันหลัง reverse proxy ที่ทำ HTTPS ให้ (เช่น nginx-proxy + acme-companion) มิเช่นนั้น
+#     cookie แบบ Secure จะทำให้ browser ไม่ยอมส่ง cookie กลับมาและ login ไม่ติด — ถ้ายังไม่มี HTTPS
+#     ให้ตั้ง COOKIE_SECURE=0 ชั่วคราวเพื่อทดสอบเท่านั้น ห้ามใช้แบบนี้กับระบบจริงที่มีข้อมูลลูกค้า
+#  4. ตัด ports: "8000:8000" ออกจาก container tdprinter-care แล้ว เพื่อไม่ให้พอร์ต 8000 เปิดตรงออกสู่
+#     อินเทอร์เน็ต/เครือข่ายภายนอกโดยไม่ผ่าน reverse proxy — ตอนนี้เข้าถึงแอปได้ทางเดียวคือผ่าน
+#     reverse proxy บน odoo-network (ตาม VIRTUAL_HOST/VIRTUAL_PORT) เท่านั้น ถ้าต้อง debug เข้าตรงๆ
+#     ชั่วคราว ใช้ `docker compose exec tdprinter-care sh` หรือเปิด port-forward เฉพาะกิจแทน อย่าเปิด
+#     ports: กลับมาแบบถาวรบนเครื่อง production
+#  5. ย้ายจาก MySQL มา PostgreSQL: ถ้า deploy นี้เคยรัน MySQL มาก่อน (มีโฟลเดอร์ ./mysql-data
+#     ของเก่าอยู่) ต้องรันสคริปต์ migrate_mysql_to_postgres.py ก่อน `docker compose up` ครั้งแรกกับ
+#     docker-compose.yml เวอร์ชันนี้ เพื่อย้ายข้อมูลเดิมมาที่ Postgres — ดู README/MIGRATION.md
+#     สำหรับขั้นตอนละเอียด ห้ามลบ ./mysql-data ทิ้งจนกว่าจะยืนยันว่าข้อมูลใน Postgres ครบถ้วนถูกต้องแล้ว

@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+{% import "_gauge_macros.html" as gauges %}
+{% block title %}Dashboard{% endblock %}
+{% block extra_head %}
+{% if centers_with_geo or customers_with_geo %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>📊 Dashboard สรุปภาพรวม</h1>
+<p class="hint" style="font-size:15px; margin-top:-6px;">🏢 ศูนย์บริการ: <b>{{ scope_label }}</b></p>
+
+<div class="card">
+  <form method="get" action="/admin/dashboard" id="dashFilterForm" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+    {% if all_centers_for_filter %}
+    <div>
+      <label>ศูนย์บริการ</label>
+      <select name="center_id">
+        <option value="">ทุกศูนย์บริการ</option>
+        {% for c in all_centers_for_filter %}
+        <option value="{{ c.center_id }}" {% if selected_center_id == c.center_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div><label>ตั้งแต่วันที่</label><input type="date" name="from" id="dashFromInput" value="{{ date_from }}"></div>
+    <div><label>ถึงวันที่</label><input type="date" name="to" id="dashToInput" value="{{ date_to }}"></div>
+    <button class="btn" type="submit">แสดง</button>
+    <div style="display:flex; gap:6px;">
+      <button type="button" class="btn small secondary" onclick="setDashQuickRange(7)">7 วัน</button>
+      <button type="button" class="btn small secondary" onclick="setDashQuickRange(15)">15 วัน (ค่าเริ่มต้น)</button>
+      <button type="button" class="btn small secondary" onclick="setDashQuickRange(30)">30 วัน</button>
+    </div>
+  </form>
+  <p class="hint" style="margin-top:8px;">ตัวเลขสรุป/กราฟสัดส่วนสถานะ/ระยะเวลาซ่อมเฉลี่ย นับตามช่วงวันที่ {{ date_from }} ถึง {{ date_to }} (ค่าเริ่มต้น 15 วันล่าสุด) — ส่วนภาระงานช่าง คลังสินค้าคงเหลือ และคิวนัดหมายที่จะถึง แสดงข้อมูลปัจจุบันเสมอ ไม่ผูกกับช่วงวันที่นี้</p>
+</div>
+<script>
+  function setDashQuickRange(days) {
+    var today = new Date();
+    var from = new Date();
+    from.setDate(today.getDate() - (days - 1));
+    function fmt(d) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    document.getElementById('dashFromInput').value = fmt(from);
+    document.getElementById('dashToInput').value = fmt(today);
+    document.getElementById('dashFilterForm').submit();
+  }
+</script>
+
+<h2>📈 แนวโน้มรายเดือน (ย้อนหลัง {{ dash_chart_labels|length }} เดือน)</h2>
+<div class="card">
+  <canvas id="dashTrendChart" style="max-height:340px;"></canvas>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+  new Chart(document.getElementById('dashTrendChart'), {
+    type: 'line',
+    data: {
+      labels: {{ dash_chart_labels|tojson }},
+      datasets: [
+        {
+          label: 'ยอดขายเครื่องพิมพ์ FDM (บาท)',
+          data: {{ dash_chart_fdm|tojson }},
+          borderColor: '#3f7fe0', backgroundColor: '#3f7fe0',
+          yAxisID: 'y', tension: 0.25
+        },
+        {
+          label: 'ยอดขายเครื่องพิมพ์ Resin (บาท)',
+          data: {{ dash_chart_resin|tojson }},
+          borderColor: '#6c4fd6', backgroundColor: '#6c4fd6',
+          yAxisID: 'y', tension: 0.25
+        },
+        {
+          label: 'ยอดขายวัสดุพิมพ์ (บาท)',
+          data: {{ dash_chart_material|tojson }},
+          borderColor: '#0d9488', backgroundColor: '#0d9488',
+          yAxisID: 'y', tension: 0.25
+        },
+        {
+          label: 'ค่าแรงช่างรวม (บาท)',
+          data: {{ dash_chart_labor|tojson }},
+          borderColor: '#e67e22', backgroundColor: '#e67e22',
+          yAxisID: 'y', tension: 0.25
+        },
+        {
+          label: 'จำนวนเคสที่แจ้งซ่อม',
+          data: {{ dash_chart_tickets_created|tojson }},
+          borderColor: '#16a34a', backgroundColor: '#16a34a',
+          yAxisID: 'y1', tension: 0.25, borderDash: [5, 3]
+        },
+        {
+          label: 'จำนวนเคสที่ซ่อมเสร็จ',
+          data: {{ dash_chart_tickets_closed|tojson }},
+          borderColor: '#0891b2', backgroundColor: '#0891b2',
+          yAxisID: 'y1', tension: 0.25, borderDash: [5, 3]
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'บาท' } },
+        y1: { type: 'linear', position: 'right', beginAtZero: true, title: { display: true, text: 'จำนวน' },
+              grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+</script>
+
+<h2>🗓️ คิวงานซ่อมวันนี้</h2>
+<div class="grid">
+  <div class="card stat gauge-card">
+    {{ gauges.gauge(open_tickets_count, "🗂️", "slate", (open_tickets_count if open_tickets_count > 0 else 1)) }}
+    <div class="label">ใบงานเปิดอยู่</div>
+  </div>
+  <div class="card stat gauge-card">
+    {{ gauges.gauge(today_bookings_count, "🗓️", "cyan", 10) }}
+    <div class="label">นัดหมายวันนี้</div>
+  </div>
+  <div class="card stat gauge-card">
+    {{ gauges.gauge(avg_repair_days if avg_repair_days is not none else 0, "⏱️", "purple", 7) }}
+    <div class="label">ระยะเวลาซ่อมเฉลี่ย (วัน){% if avg_repair_days is none %} — ยังไม่มีข้อมูล{% endif %}</div>
+  </div>
+  {% set ugcolor = 'danger' if unassigned_count > 10 else ('warning' if unassigned_count >= 7 else 'cyan') %}
+  <div class="card stat gauge-card clickable" onclick='openDashCases("unassigned", {{ "🧑‍🔧 ต้องติดตาม (ยังไม่มอบหมายช่าง)"|tojson }})'>
+    {{ gauges.gauge(unassigned_count, "🧑‍🔧", ugcolor, 15) }}
+    <div class="label">ต้องติดตาม</div>
+  </div>
+</div>
+
+<div class="ticket-columns" style="grid-template-columns: 1.3fr 1fr;">
+  <div class="card">
+    <h3 style="margin-top:0;">แนวโน้มงานเข้าเทียบงานปิด</h3>
+    <canvas id="dashTicketsTrendChart" style="max-height:260px;"></canvas>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;">สัดส่วนสถานะงานปัจจุบัน</h3>
+    <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+      <div style="flex:0 0 150px; max-width:150px; position:relative;">
+        <canvas id="dashStatusDonut"></canvas>
+        <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none;">
+          <div style="font-size:22px; font-weight:800; color:var(--ink);">{{ open_tickets_count }}</div>
+          <div style="font-size:11px; color:var(--muted);">งานเปิด</div>
+        </div>
+      </div>
+      <div style="flex:1; min-width:140px; font-size:13.5px;">
+        {% for s in statuses if s != 'Resolved/Closed' %}
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>{{ status_icons.get(s, '') }} {{ status_labels.get(s, s) }}</span>
+          <b>{{ counts.get(s, 0) }}</b>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ticket-columns" style="grid-template-columns: 1fr 1fr; margin-top:14px;">
+  <div class="card">
+    <h3 style="margin-top:0;">ภาระงานช่าง</h3>
+    {% set max_open = (workload|map(attribute='open_tickets')|list + [0])|max %}
+    {% for w in workload %}
+    <div style="margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:3px;">
+        <span>{{ w.name }}</span><span>{{ w.open_tickets }} งาน{% if w.open_tickets >= 4 %} <span class="warning">(งานล้น)</span>{% endif %}</span>
+      </div>
+      <div style="background:var(--border-soft); border-radius:999px; height:8px; overflow:hidden;">
+        <div style="width:{{ (w.open_tickets / (max_open if max_open > 0 else 1) * 100)|round(0) }}%; background:var(--brand); height:100%; border-radius:999px;"></div>
+      </div>
+    </div>
+    {% else %}
+    <p class="hint">ยังไม่มีช่างในศูนย์บริการนี้</p>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;">รายการที่ต้องทำเร่งด่วน</h3>
+    {% if dash_todo %}
+    {% for td in dash_todo %}
+    <a href="{{ td.url }}" style="display:block; text-decoration:none; color:inherit;">
+      <div class="history-item">
+        <div class="history-dot" style="background:var(--orange-fg);"></div>
+        <div>
+          <div class="history-title">{{ td.icon }} {{ td.title }}</div>
+          <div class="history-sub">{{ td.subtitle }}</div>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <p class="ok">ไม่มีงานค้างที่ต้องรีบดำเนินการ 🎉</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  new Chart(document.getElementById('dashTicketsTrendChart'), {
+    type: 'line',
+    data: {
+      labels: {{ dash_chart_labels|tojson }},
+      datasets: [
+        { label: 'งานเข้าใหม่', data: {{ dash_chart_tickets_created|tojson }}, borderColor: '#3f7fe0',
+          backgroundColor: 'rgba(63,127,224,0.12)', fill: true, tension: 0.3 },
+        { label: 'งานปิดแล้ว', data: {{ dash_chart_tickets_closed|tojson }}, borderColor: '#a78bfa',
+          backgroundColor: 'rgba(167,139,250,0.10)', fill: true, tension: 0.3, borderDash: [5, 3] }
+      ]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
+
+  new Chart(document.getElementById('dashStatusDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: [{% for s in statuses if s != 'Resolved/Closed' %}{{ status_labels.get(s, s)|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+      datasets: [{
+        data: [{% for s in statuses if s != 'Resolved/Closed' %}{{ counts.get(s, 0) }}{% if not loop.last %},{% endif %}{% endfor %}],
+        backgroundColor: ['#22d3ee', '#3f7fe0', '#fbbf24', '#6c4fd6', '#0d9488'],
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: { responsive: true, cutout: '68%', plugins: { legend: { display: false } } }
+  });
+</script>
+
+{% if upcoming_bookings %}
+<div class="card">
+  <h3 style="margin-top:0;">รายละเอียดคิวนัดหมายที่จะถึง ({{ upcoming_bookings|length }} รายการ)</h3>
+  <table class="sortable">
+    <tr><th>วันนัด</th><th>ช่วงเวลา</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>สาขา</th><th>ช่าง</th><th>สถานะ</th><th data-no-sort></th></tr>
+    {% for b in upcoming_bookings %}
+    <tr {% if b.booking_date == today_iso %}style="background:var(--blue-bg);"{% endif %}>
+      <td>{{ b.booking_date }}</td><td>{{ b.booking_time_slot }}</td>
+      <td>{{ b.customer_name }}</td><td>{{ b.model }}</td><td>{{ b.center_name or '-' }}</td>
+      <td>{{ b.tech_name or '— ยังไม่มอบหมาย —' }}</td>
+      <td>{{ status_icons.get(b.status, '') }} {{ status_labels.get(b.status, b.status) }}</td>
+      <td><a href="/admin/ticket/{{ b.ticket_id }}" class="btn small secondary">ดู</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<h2>ภาพรวมตามสถานะ</h2>
+<p class="hint" style="margin-top:-4px;">🔴 วงแหวนสีแดง = สถานะ "รอซ่อม/กำลังตรวจสอบ/รออะไหล่/รอตรวจสอบการชำระ" ค้างเกิน 10 เคส &nbsp; 🟡 สีเหลือง = ค้าง 7-10 เคส &nbsp; 👆 คลิกที่การ์ดเพื่อดูรายละเอียด</p>
+<div class="grid">
+  {% for s in statuses %}
+  {% set c = counts.get(s, 0) %}
+  {% if s in ['New', 'Diagnosing', 'Waiting for Parts'] %}
+    {% set gcolor = 'danger' if c > 10 else ('warning' if c >= 7 else 'cyan') %}
+  {% elif s == 'Resolved/Closed' %}
+    {% set gcolor = 'green' %}
+  {% else %}
+    {% set gcolor = 'cyan' %}
+  {% endif %}
+  <div class="card stat gauge-card clickable"
+       onclick='openDashCases({{ s|tojson }}, {{ (status_icons.get(s, "") ~ " " ~ status_labels.get(s, s))|tojson }})'>
+    {{ gauges.gauge(c, status_icons.get(s, ''), gcolor, 15) }}
+    <div class="label">{{ status_labels.get(s, s) }}</div>
+  </div>
+  {% endfor %}
+  {% set total_max = total if total > 0 else 1 %}
+  <div class="card stat gauge-card clickable" onclick='openDashCases("total", {{ "🗂️ ตั๋วทั้งหมด"|tojson }})'>
+    {{ gauges.gauge(total, "🗂️", "purple", total_max) }}
+    <div class="label">ตั๋วทั้งหมด</div>
+  </div>
+  {% set pgcolor = 'danger' if pending_payments_count > 10 else ('warning' if pending_payments_count >= 7 else 'cyan') %}
+  <div class="card stat gauge-card clickable" onclick="openDashPayments()">
+    {{ gauges.gauge(pending_payments_count, "💳", pgcolor, 15) }}
+    <div class="label">รอตรวจสอบการชำระ</div>
+  </div>
+</div>
+
+<div id="dashCasesOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeDashCases();">
+  <div class="modal-box" style="max-width:600px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;" id="dcTitle"></h3>
+      <button type="button" class="btn small secondary" onclick="closeDashCases()">ปิด ✕</button>
+    </div>
+    <div id="dcBody" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="dashPaymentsOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeDashPayments();">
+  <div class="modal-box" style="max-width:680px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">💳 รอตรวจสอบการชำระเงิน ({{ pending_payments_for_js|length }} รายการ)</h3>
+      <button type="button" class="btn small secondary" onclick="closeDashPayments()">ปิด ✕</button>
+    </div>
+    <div id="dpBody" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<script>
+  var DASH_CASES = {{ dash_cases_for_js|tojson }};
+  var DASH_STATUS_ICONS = {{ status_icons|tojson }};
+  var DASH_PENDING_PAYMENTS = {{ pending_payments_for_js|tojson }};
+  var DASH_CSRF = {{ csrf_token|tojson }};
+
+  function fmtDashBaht(n) { return (n || 0).toLocaleString('th-TH', {maximumFractionDigits: 2}); }
+
+  function openDashCases(kind, title) {
+    var data = DASH_CASES[kind] || [];
+    document.getElementById('dcTitle').textContent = title + ' (' + data.length + ' เคส)';
+    var body = document.getElementById('dcBody');
+    if (!data.length) {
+      body.innerHTML = '<p class="hint">ไม่มีรายการในสถานะนี้</p>';
+    } else {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
+            r.customer_name + '</td><td>' + r.model + '</td><td>' +
+            (DASH_STATUS_ICONS[r.status] || '') + ' ' + r.status_label + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    }
+    document.getElementById('dashCasesOverlay').style.display = 'flex';
+  }
+  function closeDashCases() {
+    document.getElementById('dashCasesOverlay').style.display = 'none';
+  }
+
+  function openDashPayments() {
+    var body = document.getElementById('dpBody');
+    if (!DASH_PENDING_PAYMENTS.length) {
+      body.innerHTML = '<p class="hint">ไม่มีรายการรอตรวจสอบ</p>';
+    } else {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>จำนวนเงิน</th><th>สลิป</th><th>แจ้งเมื่อ</th><th data-no-sort>จัดการ</th></tr>' +
+        DASH_PENDING_PAYMENTS.map(function (p) {
+          return '<tr><td><a href="/admin/ticket/' + p.ticket_id + '">#' + p.ticket_id + '</a></td><td>' +
+            p.customer_name + '</td><td>' + p.model + '</td><td>' + fmtDashBaht(p.amount) + ' บาท</td><td>' +
+            '<a href="' + p.slip_url + '" target="_blank"><img src="' + p.slip_url + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;"></a></td><td>' +
+            p.date + '</td><td style="white-space:nowrap;">' +
+            '<form method="post" action="/ticket/' + p.ticket_id + '/payments/' + p.payment_id + '/confirm" style="display:inline;">' +
+            '<input type="hidden" name="csrf_token" value="' + DASH_CSRF + '">' +
+            '<button class="btn small" type="submit">✅ ยืนยัน</button></form> ' +
+            '<form method="post" action="/ticket/' + p.ticket_id + '/payments/' + p.payment_id + '/reject" style="display:inline;" onsubmit="return confirm(\'ปฏิเสธการแจ้งชำระเงินนี้?\');">' +
+            '<input type="hidden" name="csrf_token" value="' + DASH_CSRF + '">' +
+            '<button class="btn small danger" type="submit">❌ ปฏิเสธ</button></form></td></tr>';
+        }).join('') + '</table>';
+    }
+    document.getElementById('dashPaymentsOverlay').style.display = 'flex';
+  }
+  function closeDashPayments() {
+    document.getElementById('dashPaymentsOverlay').style.display = 'none';
+  }
+</script>
+
+<h2>ภาระงานของช่าง (ตั๋วที่ยังไม่ปิด)</h2>
+<div class="card">
+  <table class="sortable">
+    <tr><th>ช่าง</th><th>ศูนย์บริการ</th><th>งานค้าง</th></tr>
+    {% for w in workload %}
+    <tr>
+      <td>{{ w.name }}</td>
+      <td>{{ w.center_name or '— ยังไม่ได้กำหนดศูนย์ —' }}</td>
+      <td>{{ w.open_tickets }} {% if w.open_tickets >= 4 %}<span class="warning">(งานล้น)</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<h2>⚠️ อะไหล่ใกล้หมดสต็อก</h2>
+{% if low_stock_by_category %}
+  {% for grp in low_stock_by_category %}
+  <h3 style="margin-top:18px;">{{ grp.icon }} {{ grp.label }}</h3>
+  <div class="card">
+    <table class="sortable">
+      <tr><th>SKU</th><th>ชื่อสินค้า</th><th>ศูนย์บริการ</th><th>คงเหลือ</th><th>จุดสั่งซื้อ</th></tr>
+      {% for p in grp.parts %}
+      <tr>
+        <td>{{ p.part_sku }}</td><td>{{ p.part_name }}</td>
+        <td>{{ p.center_name or 'คลังกลาง (ทุกสาขา)' }}</td>
+        <td class="warning">{{ p.stock_quantity }}</td><td>{{ p.reorder_level }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card">
+  <p class="ok">สต็อกสินค้าปกติทุกรายการ</p>
+</div>
+{% endif %}
+
+<h2>🔧 เครื่องที่ครบกำหนดบำรุงรักษา</h2>
+<p class="hint" style="margin-top:-4px;">คำนวณจากแผนบำรุงรักษา (<a href="/admin/maintenance-plans">จัดการแผนบำรุงรักษา</a>) ทีละงาน รองรับทั้งรอบแบบวันและแบบชั่วโมงใช้งานสะสม — ไม่รวมเครื่องที่เลิกใช้แล้ว/ขายต่อแล้ว</p>
+<div class="card">
+  {% if maintenance_due %}
+  <table class="sortable">
+    <tr><th>SN</th><th>รุ่น</th><th>ลูกค้า</th><th>จำนวนงานค้าง</th><th>งานที่ครบกำหนด</th><th data-no-sort></th></tr>
+    {% for d in maintenance_due %}
+    <tr>
+      <td>{{ d.device_sn }}</td><td>{{ d.model }}</td><td>{{ d.customer_name }}</td>
+      <td><span class="warning">{{ d.due_count }} งาน</span></td>
+      <td>
+        <ul style="margin:0; padding-left:16px;">
+          {% for t in d.due_tasks %}
+          <li>{{ t.task_name }} — <span class="hint">{{ t.overdue_label }}</span></li>
+          {% endfor %}
+        </ul>
+      </td>
+      <td><a href="/device/{{ d.device_sn|urlencode }}/history" class="btn small secondary">ประวัติ/บันทึก</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="ok">ไม่มีเครื่องที่ครบกำหนดบำรุงรักษาในขณะนี้</p>
+  {% endif %}
+</div>
+
+<h2>📍 แผนที่ศูนย์บริการและลูกค้า</h2>
+<p class="hint" style="margin-top:-4px;">ข้อมูลบนแผนที่นี้เป็นข้อมูลภายใน เห็นได้เฉพาะแอดมิน/ผู้จัดการที่ login แล้วเท่านั้น ไม่แสดงต่อสาธารณะ</p>
+<div class="card">
+  {% if centers_with_geo or customers_with_geo %}
+  <div id="centers-map" style="height:440px; border-radius:8px;"></div>
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:13px;">
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#8e44ad; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> FDM + Resin</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#2e5395; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> FDM เท่านั้น</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#e67e22; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> Resin เท่านั้น</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#ccc; display:inline-block; border:3px solid #f1c40f;"></span> ขอบสีทอง = จำหน่ายสินค้าได้ด้วย</span>
+    <span><span style="width:16px; height:16px; border-radius:50%; background:#2c3e50; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; vertical-align:middle;">3</span> ลูกค้า (ตัวเลข = จำนวนเครื่องพิมพ์)</span>
+  </div>
+  {% elif centers %}
+  <p class="hint">มีศูนย์บริการในระบบ {{ centers|length }} แห่ง แต่ยังไม่ได้ระบุพิกัด (ละติจูด/ลองจิจูด) เลยยังไม่ขึ้นบนแผนที่</p>
+  {% else %}
+  <p class="hint">ยังไม่มีศูนย์บริการในระบบ</p>
+  {% endif %}
+  <p style="margin-top:10px;"><a href="/admin/centers" class="btn small secondary">จัดการศูนย์บริการ</a> <a href="/admin/customers" class="btn small secondary">จัดการลูกค้า</a></p>
+</div>
+
+{% if centers_with_geo or customers_with_geo %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  var map = L.map('centers-map');
+  var bounds = [];
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  {% for c in centers_with_geo %}
+  (function () {
+    var marker = L.circleMarker([{{ c.latitude }}, {{ c.longitude }}], {
+      radius: 10, color: {{ ('#f1c40f' if c.sells_products else '#fff')|tojson }}, weight: {{ 3 if c.sells_products else 2 }},
+      fillColor: {{ c.marker_color|tojson }}, fillOpacity: 0.9
+    }).addTo(map);
+    marker.bindPopup({{ c.popup_html|tojson }}, { maxWidth: 320 });
+    bounds.push([{{ c.latitude }}, {{ c.longitude }}]);
+  })();
+  {% endfor %}
+  {% for cu in customers_with_geo %}
+  (function () {
+    var icon = L.divIcon({
+      className: '',
+      html: '<div style="width:22px; height:22px; border-radius:50%; background:#2c3e50; border:2px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; box-shadow:0 1px 3px rgba(0,0,0,.4);">{{ cu.device_count }}</div>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    var marker = L.marker([{{ cu.latitude }}, {{ cu.longitude }}], { icon: icon }).addTo(map);
+    marker.bindPopup({{ cu.popup_html|tojson }}, { maxWidth: 320 });
+    bounds.push([{{ cu.latitude }}, {{ cu.longitude }}]);
+  })();
+  {% endfor %}
+  if (bounds.length === 1) { map.setView(bounds[0], 14); }
+  else { map.fitBounds(bounds, { padding: [30, 30] }); }
+</script>
+{% endif %}
+{% endblock %}

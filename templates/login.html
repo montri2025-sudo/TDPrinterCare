@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}เข้าสู่ระบบ · TD ServicePro{% endblock %}
+{% block content %}
+<div class="login-box card">
+  <h1>เข้าสู่ระบบ</h1>
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+  {% if google_ready %}
+  <a href="/auth/google/start" class="btn" style="width:100%; display:block; text-align:center; margin-bottom:10px;">
+    🔵 เข้าสู่ระบบด้วย Google
+  </a>
+  {% endif %}
+  {% if line_ready %}
+  <a href="/auth/line/start" class="btn" style="width:100%; display:block; text-align:center; margin-bottom:10px; background:linear-gradient(100deg,#06c755,#04a548);">
+    🟢 เข้าสู่ระบบด้วย LINE
+  </a>
+  {% endif %}
+  {% if google_ready or line_ready %}
+  <div class="hint" style="text-align:center; margin:12px 0;">หรือเข้าสู่ระบบด้วยชื่อผู้ใช้</div>
+  {% endif %}
+
+  <form method="post" action="/login">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>ชื่อผู้ใช้</label>
+    <input type="text" name="username" required autofocus>
+    <label>รหัสผ่าน</label>
+    <input type="password" name="password" required>
+    <button class="btn" type="submit" style="width:100%;">เข้าสู่ระบบ</button>
+  </form>
+  <div class="hint" style="margin-top:10px;">
+    ยังไม่มีบัญชี? <a href="/signup">สมัครสมาชิก</a>
+  </div>
+  <div class="hint">
+    บัญชีทดสอบ:<br>
+    Admin: admin1 / admin123<br>
+    Technician: tech1 / tech123 (หรือ tech2)<br>
+    Manager: mgr1 / mgr123<br>
+    Sales: sale1 / sale123<br>
+    Customer: cust1 / cust123 (หรือ cust2)
+  </div>
+</div>
+{% endblock %}
