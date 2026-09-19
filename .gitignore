@@ -1,0 +1,19 @@
+# secrets — ห้าม commit
+.env
+
+# ข้อมูล/ไฟล์ที่สร้างระหว่างรัน
+mysql-data/
+postgres-data/
+odoo-db-data/
+uploads/
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.db
+*.sqlite3
+
+# ไฟล์ backup ฐานข้อมูล
+backup.sql
+backup_mysql_before_postgres_migration_20260811.sql

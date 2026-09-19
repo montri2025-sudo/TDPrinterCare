@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}การแจ้งเตือน{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+  <h1>🔔 การแจ้งเตือน</h1>
+  {% if notifications|selectattr('is_read', 'equalto', 0)|list %}
+  <form method="post" action="/notifications/read-all">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn small secondary" type="submit">อ่านทั้งหมดแล้ว</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  {% if not notifications %}
+  <p class="hint">ยังไม่มีการแจ้งเตือน</p>
+  {% else %}
+  <table class="sortable">
+    <tr><th>วันที่</th><th>เรื่อง</th><th>รายละเอียด</th><th>เครื่อง</th><th>อีเมล</th><th data-no-sort></th></tr>
+    {% for n in notifications %}
+    <tr style="{% if not n.is_read %}font-weight:700; background:#f7f9fc;{% endif %}">
+      <td style="white-space:nowrap;">{{ n.created_at }}</td>
+      <td>{{ n.title }}</td>
+      <td style="font-weight:400;">{{ n.message }}</td>
+      <td>{{ n.model or '-' }}</td>
+      <td style="font-weight:400;">
+        {% if n.email_sent %}<span class="ok">✅ ส่งแล้ว</span>
+        {% elif n.email_error %}<span class="hint" title="{{ n.email_error }}">— ไม่ได้ส่ง —</span>
+        {% else %}<span class="hint">-</span>{% endif %}
+      </td>
+      <td>
+        {% if not n.is_read %}
+        <form method="post" action="/notifications/{{ n.notification_id }}/read">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small secondary" type="submit">อ่านแล้ว</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

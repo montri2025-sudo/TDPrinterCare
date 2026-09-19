@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Checklist ก่อนพิมพ์{% endblock %}
+{% block content %}
+<h1>✅ รายการตรวจสอบก่อนพิมพ์ (Checklist)</h1>
+<p class="hint" style="margin-top:-6px;">ลูกค้า/ช่างต้องติ๊กให้ครบทุกข้อในรายการนี้ทุกครั้งก่อนบันทึก "เริ่มงานพิมพ์" ได้</p>
+
+<div class="card" style="max-width:640px;">
+  <h2 style="margin-top:0;">+ เพิ่มรายการตรวจสอบใหม่</h2>
+  <form method="post" action="/admin/checklist-items/new">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>ข้อความรายการตรวจสอบ</label>
+    <input type="text" name="label" placeholder="เช่น ทำความสะอาดฐานพิมพ์ (Bed)" required>
+    <label>ใช้กับเครื่องประเภท</label>
+    <select name="device_type">
+      <option value="">ทุกประเภท</option>
+      {% for t in device_types %}
+      <option value="{{ t }}">{{ t }}</option>
+      {% endfor %}
+    </select>
+    <label>ลำดับการแสดงผล</label>
+    <input type="number" name="sort_order" value="0">
+    <button class="btn" type="submit" style="margin-top:10px;">เพิ่มรายการตรวจสอบ</button>
+  </form>
+</div>
+
+<h2>รายการตรวจสอบทั้งหมด</h2>
+<div class="card">
+  {% if items %}
+  <table class="sortable">
+    <tr><th>ลำดับ</th><th>ข้อความ</th><th>ใช้กับ</th><th>สถานะ</th><th data-no-sort></th></tr>
+    {% for c in items %}
+    <tr style="{% if not c.is_active %}opacity:0.5;{% endif %}">
+      <td>{{ c.sort_order }}</td>
+      <td>{{ c.label }}</td>
+      <td>{{ c.device_type or 'ทุกประเภท' }}</td>
+      <td>{% if c.is_active %}<span class="ok">ใช้งานอยู่</span>{% else %}<span class="hint">ปิดใช้งาน</span>{% endif %}</td>
+      <td style="white-space:nowrap;">
+        <form method="post" action="/admin/checklist-items/{{ c.checklist_item_id }}/toggle" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small secondary" type="submit">{% if c.is_active %}ปิดใช้งาน{% else %}เปิดใช้งาน{% endif %}</button>
+        </form>
+        <form method="post" action="/admin/checklist-items/{{ c.checklist_item_id }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบรายการตรวจสอบนี้?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีรายการตรวจสอบในระบบ</p>
+  {% endif %}
+</div>
+{% endblock %}

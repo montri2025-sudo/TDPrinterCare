@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}ประวัติเครื่อง — {{ device.model }}{% endblock %}
+{% block content %}
+<a href="javascript:history.back()">← กลับ</a>
+<h1>📜 ประวัติการทำงาน — {{ device.model }}</h1>
+<p class="hint" style="margin-top:-6px;">{{ device.device_sn }} · เจ้าของ: {{ device.customer_name }}</p>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <div>
+      {% if overview.status == 'ready' %}
+      <span class="badge" style="background:var(--green-bg); color:var(--green-fg); font-size:14px;">✅ พร้อมใช้งาน</span>
+      {% elif overview.status == 'maintenance_due' %}
+      <span class="badge" style="background:var(--amber-bg); color:var(--amber-fg); font-size:14px;">🛠️ ถึงรอบบำรุงรักษา</span>
+      {% else %}
+      <span class="badge" style="background:var(--red-bg); color:var(--red-fg); font-size:14px;">🔩 กำลังซ่อม</span>
+      {% endif %}
+      <span class="hint" style="margin-left:8px;">⏱️ ชั่วโมงใช้งานสะสม: <b>{{ "%.0f"|format(device.total_usage_hours) }} ชม.</b></span>
+    </div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <a href="/device/{{ device.device_sn|urlencode }}/print/new" class="btn small">🖨️ เริ่มงานพิมพ์</a>
+      <a href="/device/{{ device.device_sn|urlencode }}/maintenance/log" class="btn small secondary">🛠️ บันทึกบำรุงรักษา</a>
+    </div>
+  </div>
+
+  {% if overview.due_tasks %}
+  <p style="margin:14px 0 4px; font-weight:700; font-size:13px;">งานที่ถึงรอบบำรุงรักษา:</p>
+  <ul style="margin:0; padding-left:18px; font-size:13px;">
+    {% for t in overview.due_tasks %}
+    <li><b>{{ t.task_name }}</b> — <span class="warning">{{ t.overdue_label }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+
+<h2>🛠️ ประวัติบำรุงรักษา</h2>
+<div class="card">
+  {% if maint_logs %}
+  <table class="sortable">
+    <tr><th>วันที่</th><th>งานตามแผน</th><th>ชั่วโมงสะสม ณ ตอนนั้น</th><th>อะไหล่ที่เปลี่ยน</th><th>หมายเหตุ</th><th>ผู้บันทึก</th></tr>
+    {% for l in maint_logs %}
+    <tr>
+      <td>{{ l.performed_at }}</td>
+      <td>{{ l.task_name or '— บันทึกอิสระ —' }}</td>
+      <td>{{ "%.0f"|format(l.hours_at_maintenance) + ' ชม.' if l.hours_at_maintenance is not none else '-' }}</td>
+      <td>{{ l.parts_replaced or '-' }}</td>
+      <td>{{ l.notes or '-' }}</td>
+      <td>{{ l.performed_by_name or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีประวัติบำรุงรักษา</p>
+  {% endif %}
+</div>
+
+<h2>🖨️ ประวัติเริ่มงานพิมพ์</h2>
+<div class="card">
+  {% if print_sessions %}
+  <table class="sortable">
+    <tr><th>วันที่/เวลา</th><th>ชั่วโมงที่ประเมิน</th><th>รายละเอียดงาน</th><th>Checklist ที่ติ๊ก</th><th>ผู้เริ่มงาน</th></tr>
+    {% for p in print_sessions %}
+    <tr>
+      <td>{{ p.created_at }}</td>
+      <td>{{ "%.1f"|format(p.estimated_hours) }} ชม.</td>
+      <td>{{ p.job_note or '-' }}</td>
+      <td>
+        {% if p.checklist %}
+        <span class="hint" title="{{ p.checklist|join(', ') }}">✅ {{ p.checklist|length }} ข้อ</span>
+        {% else %}-{% endif %}
+      </td>
+      <td>{{ p.started_by_name or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">ยังไม่มีประวัติเริ่มงานพิมพ์</p>
+  {% endif %}
+</div>
+{% endblock %}

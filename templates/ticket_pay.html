@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_payment_macros.html" import payment_section %}
+{% block title %}แจ้งชำระเงิน — ตั๋ว #{{ t.ticket_id }}{% endblock %}
+{% block content %}
+<a href="javascript:history.back()">← กลับ</a>
+<h1>💳 แจ้งชำระเงิน — ตั๋ว #{{ t.ticket_id }}</h1>
+
+<div class="card">
+  <p><b>ลูกค้า:</b> {{ t.customer_name }}</p>
+  <p><b>เครื่องพิมพ์:</b> {{ t.model }}</p>
+  <p style="font-size:18px;"><b>ยอดที่ต้องชำระ:</b> {{ "%.0f"|format(invoice_total) }} บาท</p>
+</div>
+
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>แนบสลิปการโอนเงิน</h2>
+  <form method="post" action="/ticket/{{ t.ticket_id }}/pay" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>จำนวนเงินที่โอน (บาท)</label>
+    <input type="number" name="amount" value="{{ '%.2f'|format(invoice_total) }}" min="0.01" step="0.01" required>
+    <label>รูปสลิปการโอนเงิน</label>
+    <input type="file" name="slip" accept="image/*" required>
+    <p class="hint" style="margin-top:0;">ไฟล์รูปภาพเท่านั้น ขนาดไม่เกิน {{ max_slip_mb }} MB</p>
+    <label>หมายเหตุ (ถ้ามี)</label>
+    <textarea name="notes" rows="2"></textarea>
+    <button class="btn" type="submit">ส่งแจ้งชำระเงิน</button>
+  </form>
+  <p class="hint">หลังส่งแล้ว staff จะตรวจสอบสลิปและยืนยันการชำระเงิน เมื่อยืนยันแล้วจะสามารถพิมพ์ใบเสร็จรับเงินได้</p>
+</div>
+
+{{ payment_section(t, payments, false, csrf_token) }}
+{% endblock %}

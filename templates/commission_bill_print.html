@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>บิลแจ้งค่าคอมมิชชั่นพิเศษ — {{ tech.name }}</title>
+<style>
+  body { font-family: "Tahoma", "Segoe UI", sans-serif; color: #222; max-width: 800px; margin: 40px auto; padding: 0 20px; position: relative; }
+  .watermark { position: absolute; top: 260px; left: 50%; transform: translateX(-50%); width: 420px;
+               opacity: 0.05; filter: grayscale(1); z-index: -1; pointer-events: none; }
+  .no-print { margin-bottom: 24px; }
+  .btn { background: #2e5395; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
+  .header h1 { font-size: 30px; margin: 0; color: #111; }
+  .header img.logo { height: 80px; width: auto; }
+  .field-row { display: flex; gap: 24px; margin-bottom: 6px; flex-wrap: wrap; }
+  .field-line { margin-bottom: 6px; font-size: 14px; }
+  .field-line label { color: #555; margin-right: 6px; }
+  .underline { border-bottom: 1px solid #999; display: inline-block; min-width: 220px; padding: 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 10px; font-size: 13px; text-align: left; }
+  th { background: #f5f5f5; }
+  td.num, th.num { text-align: right; }
+  tr.bonus-row td { background: #fff8e6; }
+  .summary-row td { font-weight: bold; }
+  .summary-row.grand td { font-size: 16px; }
+  .note-box { font-size: 12px; color: #555; background: #f7f9fc; border: 1px solid var(--border-soft, #e0e0e0); border-radius: 8px; padding: 10px 14px; margin: 16px 0; line-height: 1.6; }
+  .bottom { display: flex; justify-content: space-between; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+  .sign-box { text-align: center; min-width: 220px; }
+  .sign-line { border-top: 1px solid #888; margin-top: 56px; padding-top: 6px; font-size: 13px; }
+  .hint-note { font-size: 11px; color: #888; margin-top: 28px; }
+  @media print { .no-print { display: none; } body { margin: 0; } }
+</style>
+</head>
+<body>
+  <img class="watermark" src="/static/logo-tdprinter.png" alt="">
+
+  <div class="no-print">
+    <button class="btn" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+    <p style="font-size:12px; color:#666;">กดปุ่มนี้ แล้วในหน้าต่างพิมพ์ เลือกปลายทางเป็น “Save as PDF” เพื่อบันทึกไฟล์ PDF</p>
+  </div>
+
+  <div class="header">
+    <div>
+      <h1>บิลแจ้งค่าคอมมิชชั่นพิเศษ</h1>
+      <p style="margin:4px 0 0 0; color:#555;">งวดที่ {{ '1 (วันที่ 1-15)' if half == 1 else '2 (วันที่ 16-สิ้นเดือน)' }} เดือน {{ month }}/{{ year }} &nbsp;({{ period_label }})</p>
+    </div>
+    <img class="logo" src="/static/logo-tdprinter.png" alt="TDPrinter By Deenaja">
+  </div>
+
+  <div class="field-row">
+    <div class="field-line"><label>ชื่อ:</label> <span class="underline">{{ tech.name }}</span></div>
+    <div class="field-line"><label>ตำแหน่ง:</label> <span class="underline">{{ 'หัวหน้าช่าง (Technician Lead)' if tech.role == 'technician_lead' else 'ช่างซ่อม (Technician)' }}</span></div>
+  </div>
+  <div class="field-line"><label>ศูนย์บริการ:</label> <span class="underline">{{ center.name if center else '-' }}</span></div>
+
+  <div class="note-box">
+    หลักเกณฑ์การคำนวณ: เรียงลำดับเคสที่ปิดงานได้สำเร็จ (Resolved/Closed) ตามวันที่ปิดงานภายในงวดนี้ —
+    เคสที่ปิดได้เป็นลำดับที่ {{ bonus_case_rank }} ขึ้นไป จะได้รับค่าคอมมิชชั่นพิเศษ {{ bonus_rate_percent }}% ของค่าแรงในเคสนั้น
+    (เคสลำดับที่ 1-{{ bonus_case_rank - 1 }} ไม่มีค่าคอมมิชชั่นพิเศษ)
+  </div>
+
+  <table>
+    <tr>
+      <th style="width:50px;">ลำดับ</th><th>ตั๋วซ่อม</th><th>ลูกค้า / รุ่นเครื่อง</th><th>วันที่ปิดงาน</th>
+      <th class="num">ค่าแรง (บาท)</th><th class="num">ค่าคอมมิชชั่นพิเศษ</th>
+    </tr>
+    {% for c in row.cases %}
+    <tr {% if c.bonus > 0 %}class="bonus-row"{% endif %}>
+      <td>{{ c.rank }}{% if c.bonus > 0 %} 🏅{% endif %}</td>
+      <td>#{{ c.ticket_id }}</td>
+      <td>{{ c.customer_name }} — {{ c.model }}</td>
+      <td>{{ c.closed_at }}</td>
+      <td class="num">{{ "%.2f"|format(c.labor_total) }}</td>
+      <td class="num">{{ "%.2f"|format(c.bonus) if c.bonus > 0 else '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="text-align:center; color:#888;">ไม่มีเคสที่ปิดงานได้ในงวดนี้</td></tr>
+    {% endfor %}
+    <tr class="summary-row">
+      <td colspan="4" style="text-align:right;">รวมจำนวนเคสที่ปิดได้ทั้งหมด / เคสที่ได้ค่าคอมมิชชั่นพิเศษ</td>
+      <td colspan="2">{{ row.closed_count }} เคส / {{ row.bonus_case_count }} เคส</td>
+    </tr>
+    <tr class="summary-row grand">
+      <td colspan="5" style="text-align:right;">รวมค่าคอมมิชชั่นพิเศษทั้งงวด</td>
+      <td class="num">{{ "%.2f"|format(row.total_commission) }} บาท</td>
+    </tr>
+  </table>
+
+  <div class="bottom">
+    <div></div>
+    <div class="sign-box">
+      <div class="sign-line">ผู้จัดทำรายงาน</div>
+      <p>วันที่: {{ period_label }}</p>
+    </div>
+  </div>
+
+  <p class="hint-note">เอกสารนี้เป็นบิลแจ้งค่าคอมมิชชั่นพิเศษภายในของบริษัท ไม่ใช่เอกสารทางภาษี — คำนวณจากข้อมูลในระบบ ณ วันที่ออกเอกสาร</p>
+</body>
+</html>

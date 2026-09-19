@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}ทรัพยากรโปรโมท{% endblock %}
+{% block content %}
+<h1>📢 ทรัพยากรโปรโมท</h1>
+<p class="hint" style="margin-top:-6px;">โบรชัวร์ รูปภาพ เอกสาร PDF และวิดีโอจากสำนักงานใหญ่ — นำไปใช้โปรโมทหน้าร้าน/โซเชียลของศูนย์บริการได้เลย</p>
+
+{% set has_any = groups|selectattr('resources')|list|length > 0 %}
+{% if not has_any %}
+<div class="card"><p class="hint">ยังไม่มีทรัพยากรโปรโมทจากสำนักงานใหญ่ในขณะนี้</p></div>
+{% endif %}
+
+{% for g in groups %}
+{% if g.resources %}
+<h2 style="margin-top:24px;">{{ g.label }}</h2>
+<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:16px;">
+  {% for r in g.resources %}
+  <div class="card" style="margin:0;">
+    <h3 style="margin-top:0;">{{ r.title }}</h3>
+    {% if r.description %}<p class="hint" style="margin-top:-6px;">{{ r.description }}</p>{% endif %}
+    {% if r.resource_type == 'Video' %}
+    <a href="{{ r.video_url }}" target="_blank" rel="noopener" class="btn small">🎬 เปิดวิดีโอ ↗</a>
+    {% elif r.resource_type == 'Brochure' %}
+    <a href="/resource-file/{{ r.file_filename }}" target="_blank">
+      <img src="/resource-file/{{ r.file_filename }}" alt="{{ r.title }}"
+           style="width:100%; max-height:160px; object-fit:cover; border-radius:6px; border:1px solid #ddd; margin-bottom:8px;"
+           onerror="this.style.display='none';">
+    </a>
+    <a href="/resource-file/{{ r.file_filename }}" target="_blank" class="btn small">เปิด/ดาวน์โหลด</a>
+    {% else %}
+    <a href="/resource-file/{{ r.file_filename }}" target="_blank" class="btn small">📄 เปิด/ดาวน์โหลด PDF</a>
+    {% endif %}
+    <p class="hint" style="margin-top:8px; margin-bottom:0;">อัปเดตเมื่อ {{ r.created_at }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}ลูกค้า/เครื่อง{% endblock %}
+{% block content %}
+<h1>👥 ลูกค้าและเครื่องพิมพ์</h1>
+
+<div class="grid">
+  <div class="card">
+    <h2>+ เพิ่มลูกค้าใหม่</h2>
+    <form method="post" action="/admin/customers/new">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>ชื่อ</label><input type="text" name="name" required>
+      <label>เบอร์โทร</label><input type="text" name="phone">
+      <label>อีเมล</label><input type="text" name="email">
+      <label>Line ID</label><input type="text" name="line_id">
+      <label>เลขประจำตัวผู้เสียภาษี (Tax ID)</label><input type="text" name="tax_id" placeholder="เลข 13 หลัก" maxlength="20">
+      <label>โควตาเครื่องพิมพ์ลงทะเบียนเอง</label><input type="number" name="device_quota" value="3" min="0">
+      <p class="hint" style="margin-top:-6px;">จำนวนเครื่องพิมพ์สูงสุดที่ลูกค้าคนนี้เพิ่มเองได้ (หน้าสมัครสมาชิก/หน้า "เพิ่มเครื่องพิมพ์ของฉัน") ค่าเริ่มต้น 3 เครื่อง</p>
+      <label>ที่อยู่</label><textarea name="address" rows="2"></textarea>
+      <label>ละติจูด (Latitude)</label><input type="text" name="latitude" placeholder="เช่น 13.7440">
+      <label>ลองจิจูด (Longitude)</label><input type="text" name="longitude" placeholder="เช่น 100.5622">
+      <p class="hint">พิกัดไม่บังคับ — หาได้จาก Google Maps: คลิกขวาที่ตำแหน่งบ้านลูกค้า แล้วเลือกตัวเลขพิกัดที่ขึ้นมา ใส่ไว้เพื่อให้ขึ้นบนแผนที่ Dashboard ภายใน (แอดมิน/ผู้จัดการเท่านั้น ไม่แสดงต่อสาธารณะ)</p>
+      <button class="btn" type="submit">บันทึกลูกค้า</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>+ ลงทะเบียนเครื่องพิมพ์</h2>
+    <form method="post" action="/admin/devices/new">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Serial Number</label><input type="text" name="device_sn" required>
+      <label>ลูกค้า</label>
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="customer_display" readonly required placeholder="คลิกเพื่อค้นหาลูกค้า..." style="flex:1; cursor:pointer; background:#f7f9fc;" onclick="openCustomerPicker()">
+        <button type="button" class="btn small secondary" onclick="openCustomerPicker()">🔍 ค้นหา</button>
+      </div>
+      <input type="hidden" id="customer_id" name="customer_id">
+      <label>รุ่น</label><input type="text" name="model" placeholder="เช่น Kobra 2" required>
+      <label>ประเภท</label>
+      <select name="type">
+        <option>FDM</option>
+        <option>Resin</option>
+        <option>Wash &amp; Cure</option>
+        <option>Other</option>
+      </select>
+      <label>วันที่ซื้อ</label><input type="date" name="purchase_date">
+      <label>วันหมดประกัน</label><input type="date" name="warranty_end_date">
+      <label>สถานะเครื่อง</label>
+      <select name="status">
+        <option value="Active">ใช้งานอยู่</option>
+        <option value="Decommissioned">เลิกใช้แล้ว</option>
+        <option value="Sold">ขายต่อแล้ว</option>
+      </select>
+      <button class="btn" type="submit">บันทึกเครื่อง</button>
+    </form>
+  </div>
+</div>
+
+<h2>รายชื่อลูกค้า</h2>
+<p class="hint" style="margin-top:-6px;">💡 คลิกที่แถวลูกค้าเพื่อดูเฉพาะเครื่องพิมพ์ของลูกค้านั้นในตาราง "เครื่องพิมพ์ทั้งหมด" ด้านล่าง</p>
+<div class="card">
+  <div style="margin-bottom:10px;">
+    <label>ค้นหาลูกค้า</label>
+    <input type="text" data-search-for="customers-table" placeholder="พิมพ์ชื่อ, เบอร์โทร, อีเมล, Line ID หรือเลขผู้เสียภาษี..." autocomplete="off">
+  </div>
+  <table class="sortable" id="customers-table">
+    <tr><th>ชื่อ</th><th>เบอร์โทร</th><th>อีเมล</th><th>Line ID</th><th>เลขผู้เสียภาษี</th><th>พิกัด</th><th>โควตาเครื่อง</th><th></th></tr>
+    {% for c in customers %}
+    <tr data-pair-id="customer-edit-row-{{ c.customer_id }}" data-customer-id="{{ c.customer_id }}"
+        style="cursor:pointer;" onclick='filterDevicesByCustomer({{ c.customer_id }}, {{ c.name|tojson }})'>
+      <td>{{ c.name }}</td>
+      <td>{{ c.phone }}</td>
+      <td>{{ c.email }}</td>
+      <td>{{ c.line_id }}</td>
+      <td>{{ c.tax_id or '-' }}</td>
+      <td>
+        {% if c.latitude and c.longitude %}<span class="ok">✓ ระบุแล้ว</span>
+        {% else %}<span class="hint">— ยังไม่ระบุ —</span>{% endif %}
+      </td>
+      <td><span{% if c.device_count >= c.device_quota %} class="warning"{% endif %}>{{ c.device_count }} / {{ c.device_quota }}</span></td>
+      <td style="white-space:nowrap;">
+        {% if user.role != 'sales' %}
+        <button class="btn small secondary" type="button" onclick="toggleCustomerEdit({{ c.customer_id }})">แก้ไข</button>
+        {% else %}
+        <span class="hint">—</span>
+        {% endif %}
+        {% if user.role == 'admin' %}
+        <form method="post" action="/admin/customers/{{ c.customer_id }}/delete" style="display:inline;"
+              onclick="event.stopPropagation();"
+              onsubmit="return confirm('ลบลูกค้า {{ c.name }} ออกจากระบบถาวร? เครื่องพิมพ์/ตั๋วซ่อม/ประวัติซ่อม/ใบเสนอราคาทั้งหมดของลูกค้ารายนี้จะถูกลบไปด้วย และกู้คืนไม่ได้ (ยอดขายที่เคยผูกกับลูกค้ารายนี้จะยังคงอยู่ แต่จะไม่ผูกกับลูกค้าคนนี้อีกต่อไป) ใช้สำหรับลบรายชื่อที่สร้างซ้ำโดยไม่ได้ตั้งใจเท่านั้น');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% if user.role != 'sales' %}
+    <tr id="customer-edit-row-{{ c.customer_id }}" style="display:none; background:#f7f9fc;">
+      <td colspan="8">
+        <form method="post" action="/admin/customers/{{ c.customer_id }}/edit">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="grid">
+            <div><label>ชื่อ</label><input type="text" name="name" value="{{ c.name }}" required></div>
+            <div><label>เบอร์โทร</label><input type="text" name="phone" value="{{ c.phone or '' }}"></div>
+            <div><label>อีเมล</label><input type="text" name="email" value="{{ c.email or '' }}"></div>
+            <div><label>Line ID</label><input type="text" name="line_id" value="{{ c.line_id or '' }}"></div>
+            <div><label>เลขประจำตัวผู้เสียภาษี (Tax ID)</label><input type="text" name="tax_id" value="{{ c.tax_id or '' }}" maxlength="20"></div>
+            <div><label>โควตาเครื่องพิมพ์ลงทะเบียนเอง</label><input type="number" name="device_quota" value="{{ c.device_quota }}" min="0"></div>
+            <div style="grid-column: 1 / -1;"><label>ที่อยู่</label><input type="text" name="address" value="{{ c.address or '' }}"></div>
+            <div><label>ละติจูด (Latitude)</label><input type="text" name="latitude" value="{{ c.latitude if c.latitude is not none else '' }}"></div>
+            <div><label>ลองจิจูด (Longitude)</label><input type="text" name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}"></div>
+          </div>
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleCustomerEdit({{ c.customer_id }})">ยกเลิก</button>
+        </form>
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+</div>
+
+<script>
+  function toggleCustomerEdit(customerId) {
+    var row = document.getElementById('customer-edit-row-' + customerId);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+  function toggleDeviceEdit(idx) {
+    var row = document.getElementById('device-edit-row-' + idx);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+
+  // กรองตาราง "เครื่องพิมพ์ทั้งหมด" ให้แสดงเฉพาะเครื่องของลูกค้าที่คลิกแถว — อาศัยกลไกค้นหาแบบ instant
+  // search ของ paginate.js เดิม (ยิง event ใส่ช่องค้นหาที่ซ่อนไว้) เพื่อไม่ให้ชนกับการแบ่งหน้า/เรียงลำดับ
+  // ที่ paginate.js ควบคุมอยู่แล้ว — ทุกแถวเครื่องมี token ที่มองไม่เห็น "cid:<customer_id>#" ฝังไว้ในคอลัมน์
+  // "จัดการ" (คอลัมน์ที่ไม่ใช้เรียงลำดับอยู่แล้ว) ให้ค้นหาแบบตรงตัวได้ไม่ชนกับ ID อื่นที่ขึ้นต้นเหมือนกัน
+  function filterDevicesByCustomer(customerId, customerName) {
+    var input = document.getElementById('devices-customer-filter');
+    input.value = 'cid:' + customerId + '#';
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+
+    document.querySelectorAll('#customers-table tr[data-customer-id]').forEach(function (r) {
+      r.classList.toggle('selected-row', r.getAttribute('data-customer-id') === String(customerId));
+    });
+
+    document.getElementById('devicesFilterName').textContent = customerName;
+    document.getElementById('devicesFilterBar').style.display = 'flex';
+    document.getElementById('devicesHeading').scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+
+  function resetDevicesFilter() {
+    var input = document.getElementById('devices-customer-filter');
+    input.value = '';
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+
+    document.querySelectorAll('#customers-table tr[data-customer-id]').forEach(function (r) {
+      r.classList.remove('selected-row');
+    });
+    document.getElementById('devicesFilterBar').style.display = 'none';
+  }
+</script>
+
+<h2 id="devicesHeading" style="cursor:pointer;" onclick="resetDevicesFilter()" title="คลิกเพื่อแสดงเครื่องพิมพ์ทั้งหมด">เครื่องพิมพ์ทั้งหมด / สถานะประกัน</h2>
+<div id="devicesFilterBar" style="display:none; align-items:center; gap:10px; margin:-6px 0 10px;">
+  <span class="hint">🔎 กำลังแสดงเฉพาะเครื่องของ: <b id="devicesFilterName"></b></span>
+  <button type="button" class="btn small secondary" onclick="resetDevicesFilter()">แสดงทั้งหมด ✕</button>
+</div>
+<input type="text" id="devices-customer-filter" data-search-for="devices-table" style="display:none;">
+<div class="card">
+  <table class="sortable" id="devices-table">
+    <tr>
+      <th>SN</th><th>รุ่น</th><th>ประเภท</th><th>หมดประกัน</th><th>สถานะประกัน</th>
+      <th>สถานะเครื่อง</th><th>บำรุงรักษาล่าสุด</th><th data-no-sort></th>
+    </tr>
+    {% for d in devices %}
+    {% set left = days_left(d.warranty_end_date) %}
+    <tr data-pair-id="device-edit-row-{{ loop.index }}">
+      <td>{{ d.device_sn }}</td><td>{{ d.model }}</td><td>{{ d.type }}</td>
+      <td>{{ d.warranty_end_date or '-' }}</td>
+      <td>
+        {% if left is none %}-
+        {% elif left >= 0 %}<span class="ok">ในประกัน ({{ left }} วัน)</span>
+        {% else %}<span class="warning">หมดประกันแล้ว</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if d.status == 'Active' %}<span class="ok">ใช้งานอยู่</span>
+        {% elif d.status == 'Sold' %}<span class="hint">ขายต่อแล้ว</span>
+        {% else %}<span class="hint">เลิกใช้แล้ว</span>{% endif %}
+      </td>
+      <td>
+        {{ d.last_maintenance[:10] if d.last_maintenance else 'ยังไม่เคย' }}
+        {% if user.role != 'sales' %}
+        <form method="post" action="/admin/devices/{{ d.device_sn|urlencode }}/maintenance" style="display:flex; gap:4px; margin-top:4px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="date" name="performed_at" value="{{ today }}" style="width:130px; margin:0;">
+          <button class="btn small secondary" type="submit">บันทึกบำรุงรักษา</button>
+        </form>
+        {% endif %}
+      </td>
+      <td style="white-space:nowrap;">
+        <span style="display:none;">cid:{{ d.customer_id }}#</span>
+        <button class="btn small secondary" type="button" onclick="toggleDeviceEdit({{ loop.index }})">แก้ไข</button>
+        {% if user.role != 'sales' %}
+        <form method="post" action="/admin/devices/{{ d.device_sn|urlencode }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบเครื่องพิมพ์ {{ d.device_sn }} ออกจากระบบ? ตั๋วซ่อม/ประวัติ/ใบเสนอราคาของเครื่องนี้ทั้งหมดจะถูกลบไปด้วย และกู้คืนไม่ได้');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    <tr id="device-edit-row-{{ loop.index }}" style="display:none; background:#f7f9fc;">
+      <td colspan="8">
+        <form method="post" action="/admin/devices/{{ d.device_sn|urlencode }}/edit">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="grid">
+            <div><label>หมายเลขเครื่อง (SN)</label><input type="text" name="device_sn" value="{{ d.device_sn }}" required></div>
+            <div><label>รุ่น</label><input type="text" name="model" value="{{ d.model }}" required></div>
+            <div><label>ประเภท</label>
+              <select name="type">
+                <option {% if d.type == 'FDM' %}selected{% endif %}>FDM</option>
+                <option {% if d.type == 'Resin' %}selected{% endif %}>Resin</option>
+                <option {% if d.type == 'Wash & Cure' %}selected{% endif %}>Wash &amp; Cure</option>
+                <option {% if d.type == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            <div><label>วันที่ซื้อ</label><input type="date" name="purchase_date" value="{{ d.purchase_date or '' }}"></div>
+            <div><label>วันหมดประกัน</label><input type="date" name="warranty_end_date" value="{{ d.warranty_end_date or '' }}"></div>
+            <div>
+              <label>สถานะเครื่อง</label>
+              <select name="status">
+                <option value="Active" {% if d.status == 'Active' %}selected{% endif %}>ใช้งานอยู่</option>
+                <option value="Decommissioned" {% if d.status == 'Decommissioned' %}selected{% endif %}>เลิกใช้แล้ว</option>
+                <option value="Sold" {% if d.status == 'Sold' %}selected{% endif %}>ขายต่อแล้ว</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleDeviceEdit({{ loop.index }})">ยกเลิก</button>
+        </form>
+        <p class="hint" style="margin-top:4px;">เครื่องที่ "เลิกใช้แล้ว"/"ขายต่อแล้ว" จะไม่ขึ้นในตัวเลือกแจ้งซ่อมใหม่ของลูกค้า และไม่ขึ้นในรายการแจ้งเตือนบำรุงรักษาบน Dashboard อีกต่อไป · เปลี่ยนหมายเลขเครื่อง (SN) ได้ แต่ต้องไม่ซ้ำกับเครื่องอื่นในระบบ</p>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div id="customerPickerOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeCustomerPicker();">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">ค้นหาลูกค้า</h3>
+      <button type="button" class="btn small secondary" onclick="closeCustomerPicker()">ปิด ✕</button>
+    </div>
+    <input type="text" id="customerPickerSearch" oninput="filterCustomerPicker()" placeholder="พิมพ์ชื่อ, เบอร์โทร หรือเลขผู้เสียภาษี เพื่อค้นหา...">
+    <div id="customerPickerResults" style="overflow-y:auto; max-height:50vh; margin-top:10px; border:1px solid var(--border-soft); border-radius:8px;"></div>
+    <p class="hint" style="margin-top:8px; margin-bottom:0;">ทั้งหมด {{ customers|length }} ราย</p>
+  </div>
+</div>
+
+<script>
+  var CUSTOMER_PICKER_CUSTOMERS = {{ customers_for_js|tojson }};
+
+  function openCustomerPicker() {
+    document.getElementById('customerPickerOverlay').style.display = 'flex';
+    var search = document.getElementById('customerPickerSearch');
+    search.value = '';
+    renderCustomerPickerResults(CUSTOMER_PICKER_CUSTOMERS);
+    search.focus();
+  }
+
+  function closeCustomerPicker() {
+    document.getElementById('customerPickerOverlay').style.display = 'none';
+  }
+
+  function filterCustomerPicker() {
+    var q = document.getElementById('customerPickerSearch').value.trim().toLowerCase();
+    if (!q) { renderCustomerPickerResults(CUSTOMER_PICKER_CUSTOMERS); return; }
+    var filtered = CUSTOMER_PICKER_CUSTOMERS.filter(function (c) {
+      return c.name.toLowerCase().indexOf(q) !== -1 ||
+             c.phone.toLowerCase().indexOf(q) !== -1 ||
+             c.tax_id.toLowerCase().indexOf(q) !== -1;
+    });
+    renderCustomerPickerResults(filtered);
+  }
+
+  function renderCustomerPickerResults(list) {
+    var container = document.getElementById('customerPickerResults');
+    container.innerHTML = '';
+    if (!list.length) {
+      container.innerHTML = '<div class="picker-empty">ไม่พบลูกค้าที่ตรงกับคำค้นหา</div>';
+      return;
+    }
+    list.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'picker-row';
+      row.onclick = function () { selectCustomer(c.id); };
+      row.innerHTML =
+        '<span class="picker-name">' + c.name + '</span>' +
+        '<span class="picker-meta">' + (c.phone || '-') + '</span>';
+      container.appendChild(row);
+    });
+  }
+
+  function selectCustomer(id) {
+    var c = CUSTOMER_PICKER_CUSTOMERS.find(function (x) { return x.id === id; });
+    if (!c) return;
+    document.getElementById('customer_display').value = c.name + (c.phone ? ' (' + c.phone + ')' : '');
+    document.getElementById('customer_id').value = c.id;
+    closeCustomerPicker();
+  }
+</script>
+{% endblock %}

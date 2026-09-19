@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ใบส่งสินค้า — คำสั่งซื้อ #{{ order.order_id }}</title>
+<style>
+  body { font-family: "Tahoma", "Segoe UI", sans-serif; color: #222; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1f3864; padding-bottom: 16px; margin-bottom: 24px; }
+  .header h1 { color: #1f3864; margin: 0; font-size: 26px; }
+  .doc-title { text-align: right; }
+  .doc-title h2 { margin: 0; color: #2e5395; }
+  .doc-title p { margin: 2px 0; font-size: 13px; }
+  .parties { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+  .party-box { flex: 1; }
+  .party-box h3 { margin: 0 0 6px 0; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+  .party-box p { margin: 2px 0; font-size: 14px; }
+  .party-box .party-name { font-size: 16px; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 10px; font-size: 14px; text-align: left; }
+  th { background: #f0f0f0; }
+  td.num, th.num { text-align: right; }
+  .total-row td { font-weight: bold; font-size: 16px; }
+  .no-print { margin-bottom: 24px; }
+  .btn { background: #2e5395; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .sign-section { display: flex; justify-content: space-between; gap: 40px; margin-top: 56px; }
+  .sign-box { flex: 1; text-align: center; }
+  .sign-line { border-top: 1px solid #888; margin-top: 48px; padding-top: 6px; font-size: 13px; }
+  .footnote { font-size: 12px; color: #888; margin-top: 32px; }
+  @media print { .no-print { display: none; } body { margin: 0; } }
+</style>
+</head>
+<body>
+  <div class="no-print">
+    <button class="btn" onclick="window.print()">🖨️ พิมพ์ / บันทึกเป็น PDF</button>
+    <p style="font-size:12px; color:#666;">กดปุ่มนี้ แล้วในหน้าต่างพิมพ์ เลือกปลายทางเป็น “Save as PDF” เพื่อบันทึกไฟล์ PDF</p>
+  </div>
+
+  <div class="header">
+    <div style="display:flex; align-items:center; gap:10px;">
+      {% if hq.logo_filename %}
+      <img src="/center-logo/{{ hq.center_id }}/{{ hq.logo_filename }}" alt="{{ hq.name }}" style="height:48px; width:auto; object-fit:contain;">
+      {% else %}
+      <img src="/static/logo.svg" alt="TD ServicePro" style="height:44px; width:auto;">
+      {% endif %}
+      <div>
+        <h1>ใบส่งสินค้า</h1>
+      </div>
+    </div>
+    <div class="doc-title">
+      <h2>คำสั่งซื้อเลขที่ #{{ order.order_id }}</h2>
+      <p>วันที่ {{ order.created_at }}</p>
+      {% if order.tracking_number %}<p>เลขติดตามพัสดุ: {{ order.tracking_number }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="parties">
+    <div class="party-box">
+      <h3>ผู้ส่ง</h3>
+      <p class="party-name">{{ hq.name }}</p>
+      <p>{{ hq.address or '-' }}</p>
+      {% if hq.tax_id %}<p>เลขประจำตัวผู้เสียภาษี {{ hq.tax_id }}</p>{% endif %}
+      {% if hq.phone %}<p>โทร {{ hq.phone }}</p>{% endif %}
+      {% if hq.email %}<p>อีเมล {{ hq.email }}</p>{% endif %}
+      {% if hq.website %}<p>เว็บไซต์ {{ hq.website }}</p>{% endif %}
+    </div>
+    <div class="party-box">
+      <h3>ผู้รับ</h3>
+      <p class="party-name">{{ order.center_name }}</p>
+      <p>{{ order.center_address or '-' }}</p>
+      {% if order.center_tax_id %}<p>เลขประจำตัวผู้เสียภาษี {{ order.center_tax_id }}</p>{% endif %}
+      {% if order.center_phone %}<p>โทร {{ order.center_phone }}</p>{% endif %}
+    </div>
+  </div>
+
+  {% if items %}
+  <table>
+    <tr>
+      <th style="width:40px;">ลำดับ</th><th>รายละเอียด</th><th class="num" style="width:80px;">จำนวน</th>
+      <th class="num" style="width:110px;">ราคาต่อหน่วย</th><th class="num" style="width:120px;">รวมเป็นเงิน</th>
+    </tr>
+    {% for it in items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ it.part_name }}</td>
+      <td class="num">{{ it.quantity_requested }}</td>
+      <td class="num">{{ "%.2f"|format(it.unit_price) }}</td>
+      <td class="num">{{ "%.2f"|format(it.quantity_requested * it.unit_price) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="total-row">
+      <td colspan="4" style="text-align:right;">ราคารวมสินค้า (บาท)</td>
+      <td class="num">{{ "%.2f"|format(total) }}</td>
+    </tr>
+  </table>
+  {% else %}
+  <p>ไม่มีรายการสินค้าในคำสั่งซื้อนี้</p>
+  {% endif %}
+
+  {% if order.notes %}<p><b>หมายเหตุ:</b> {{ order.notes }}</p>{% endif %}
+
+  <div class="sign-section">
+    <div class="sign-box">
+      <div class="sign-line">ผู้จัดส่ง / อนุมัติโดย ({{ hq.name }})</div>
+    </div>
+    <div class="sign-box">
+      <div class="sign-line">ผู้รับสินค้า ({{ order.center_name }})</div>
+    </div>
+  </div>
+
+  <p class="footnote">เอกสารนี้เป็นใบส่งสินค้าประกอบการจัดส่งภายในระหว่างสำนักงานใหญ่และศูนย์บริการ ไม่ใช่ใบกำกับภาษี</p>
+</body>
+</html>

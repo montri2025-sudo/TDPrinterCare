@@ -1,0 +1,26 @@
+{# gauge(value, icon, color, max_value) — วาดวงแหวนเรืองแสง (radial gauge) สไตล์ไฮเทค แสดงตัวเลขไว้ตรงกลาง
+   ใช้แทนตัวเลขธรรมดาบนการ์ดสถิติของหน้า Dashboard (แอดมิน/ผู้จัดการ และลูกค้า) เท่านั้น — หน้าอื่นที่ใช้ .card.stat
+   (เช่น รายงาน, CSAT, บำรุงรักษา) ยังคงเป็นตัวเลขธรรมดาตามเดิม ไม่ถูกกระทบ
+
+   value      = ตัวเลขที่จะแสดงตรงกลางวงแหวน
+   icon       = อิโมจิไอคอนเล็กๆ เหนือตัวเลข
+   color      = ชื่อชุดสี ('cyan'|'green'|'warning'|'danger'|'purple'|'slate') — กำหนดสีวงแหวน+เรืองแสงตามสถานะ
+   max_value  = ค่าอ้างอิงที่ถือว่าวงแหวน "เต็ม" (100%) — ใช้ควบคุมว่าวงแหวนโค้งไปเท่าไหร่ ไม่ใช่แกนตัวเลขจริง
+#}
+{% macro gauge(value, icon, color='cyan', max_value=15) %}
+{% set safe_max = max_value if max_value and max_value > 0 else 1 %}
+{% set pct = 100 if value >= safe_max else ((value / safe_max * 100) if value > 0 else 0) %}
+{% set circumference = 326.7 %}
+{% set dash = (pct / 100 * circumference) | round(1) %}
+<div class="gauge gauge-{{ color }}">
+  <svg viewBox="0 0 120 120" class="gauge-svg" aria-hidden="true">
+    <circle class="gauge-track" cx="60" cy="60" r="52"></circle>
+    <circle class="gauge-fill gauge-fill-{{ color }}" cx="60" cy="60" r="52"
+            style="stroke-dasharray: {{ dash }} {{ circumference }};"></circle>
+  </svg>
+  <div class="gauge-center">
+    <div class="gauge-icon">{{ icon }}</div>
+    <div class="gauge-num">{{ value }}</div>
+  </div>
+</div>
+{% endmacro %}

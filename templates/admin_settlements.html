@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}รายงานยอดขายฝากขายจากศูนย์บริการ{% endblock %}
+{% block content %}
+<h1>💰 รายงานยอดขาย/ชำระเงินฝากขายจากศูนย์บริการ</h1>
+<p class="hint" style="margin-top:-6px;">ตรวจสอบกระทบยอด ออกเลขที่ใบแจ้งหนี้ และยืนยันรับชำระเงินฝากขายจากแต่ละศูนย์บริการ</p>
+
+<div class="card">
+  {% if not settlements %}
+  <p class="hint">ยังไม่มีศูนย์บริการใดส่งรายงานยอดขายฝากขายเข้ามา</p>
+  {% else %}
+  <table class="sortable">
+    <tr><th>ศูนย์บริการ</th><th>เดือน</th><th>ยอดขายฝากขาย (บาท)</th><th>สถานะ</th><th>เลขที่ใบแจ้งหนี้</th><th>ส่งรายงานเมื่อ</th><th data-no-sort>จัดการ</th></tr>
+    {% for s in settlements %}
+    <tr>
+      <td>{{ s.center_name }}</td>
+      <td>{{ s.period_month }}</td>
+      <td>{{ "%.0f"|format(s.total_consignment_sales) }}</td>
+      <td>{{ settlement_status_labels.get(s.status, s.status) }}</td>
+      <td>{{ s.invoice_number or '—' }}</td>
+      <td>{{ s.submitted_at or '—' }}</td>
+      <td style="white-space:nowrap;">
+        {% if s.status == 'submitted' %}
+        <button class="btn small secondary" type="button" onclick="openReconcileForm({{ s.settlement_id }})">🔎 ตรวจสอบกระทบยอด</button>
+        {% elif s.status == 'reconciled' %}
+        <form method="post" action="/admin/settlements/{{ s.settlement_id }}/mark-paid" style="display:inline;"
+              onsubmit="return confirm('ยืนยันว่าได้รับชำระเงินฝากขายจากศูนย์นี้ครบแล้ว?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small" type="submit">✅ ยืนยันรับชำระเงินแล้ว</button>
+        </form>
+        {% else %}
+        <span class="hint">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+<div id="reconcileOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeReconcileForm();">
+  <div class="modal-box" style="max-width:420px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">🔎 ตรวจสอบกระทบยอด</h3>
+      <button type="button" class="btn small secondary" onclick="closeReconcileForm()">ปิด ✕</button>
+    </div>
+    <form method="post" id="reconcileForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>เลขที่ใบแจ้งหนี้ (ไม่บังคับ)</label>
+      <input type="text" name="invoice_number" placeholder="เช่น INV-2026-0042">
+      <button class="btn" type="submit">ยืนยันตรวจสอบกระทบยอด</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openReconcileForm(settlementId) {
+    document.getElementById('reconcileForm').action = '/admin/settlements/' + settlementId + '/reconcile';
+    document.getElementById('reconcileOverlay').style.display = 'flex';
+  }
+  function closeReconcileForm() {
+    document.getElementById('reconcileOverlay').style.display = 'none';
+  }
+</script>
+{% endblock %}

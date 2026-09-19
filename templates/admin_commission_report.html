@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}รายงานค่าคอมมิชชั่นพิเศษ{% endblock %}
+{% block content %}
+<h1>🏅 รายงานค่าคอมมิชชั่นพิเศษ (ช่าง / หัวหน้าช่าง)</h1>
+
+<div class="card">
+  <form method="get" action="/admin/commission-report" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+    <div>
+      <label>เดือน</label>
+      <select name="month">
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>ปี (ค.ศ.)</label>
+      <input type="number" name="year" value="{{ year }}" style="width:100px;">
+    </div>
+    <div>
+      <label>งวด</label>
+      <select name="half">
+        <option value="1" {% if half == 1 %}selected{% endif %}>งวดที่ 1 (วันที่ 1-15)</option>
+        <option value="2" {% if half == 2 %}selected{% endif %}>งวดที่ 2 (วันที่ 16-สิ้นเดือน)</option>
+      </select>
+    </div>
+    {% if not is_scoped %}
+    <div>
+      <label>ศูนย์บริการ</label>
+      <select name="center_id">
+        <option value="">— ทุกศูนย์บริการ —</option>
+        {% for c in all_centers %}
+        <option value="{{ c.center_id }}" {% if c.center_id == selected_center_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <button class="btn" type="submit">แสดงรายงาน</button>
+    <a class="btn small secondary" href="/admin/commission-report?year={{ prev_year }}&month={{ prev_month }}&half={{ prev_half }}{% if selected_center_id %}&center_id={{ selected_center_id }}{% endif %}">⬅️ งวดก่อนหน้า</a>
+    <a class="btn small secondary" href="/admin/commission-report?year={{ next_year }}&month={{ next_month }}&half={{ next_half }}{% if selected_center_id %}&center_id={{ selected_center_id }}{% endif %}">งวดถัดไป ➡️</a>
+  </form>
+  <p class="hint" style="margin-top:8px;">งวดปัจจุบัน: {{ period_label }} — เคสที่ปิดงานได้ (Resolved/Closed) เป็นลำดับที่ {{ bonus_case_rank }} ขึ้นไปในงวด จะได้ค่าคอมมิชชั่นพิเศษ {{ bonus_rate_percent }}% ของค่าแรงในเคสนั้น{% if selected_center_name %} — กรองเฉพาะศูนย์ {{ selected_center_name }}{% endif %}</p>
+</div>
+
+<div class="stat-cards" style="display:flex; gap:16px; flex-wrap:wrap; margin:16px 0;">
+  <div class="card" style="flex:1; min-width:180px;">
+    <div class="hint">เคสที่ปิดงานได้ทั้งหมด</div>
+    <div style="font-size:26px; font-weight:700;">{{ total_closed_cases }}</div>
+  </div>
+  <div class="card" style="flex:1; min-width:180px;">
+    <div class="hint">เคสที่ได้ค่าคอมมิชชั่นพิเศษ</div>
+    <div style="font-size:26px; font-weight:700;">{{ total_bonus_cases }}</div>
+  </div>
+  <div class="card" style="flex:1; min-width:180px;">
+    <div class="hint">รวมค่าคอมมิชชั่นพิเศษทั้งงวด</div>
+    <div style="font-size:26px; font-weight:700; color:#b8860b;">{{ "%.2f"|format(total_commission) }} บาท</div>
+  </div>
+</div>
+
+<div class="card">
+  <table class="sortable">
+    <tr>
+      <th>ชื่อ</th><th>ตำแหน่ง</th><th>ศูนย์บริการ</th>
+      <th data-no-sort class="num">เคสที่ปิดได้</th><th data-no-sort class="num">เคสที่ได้คอม</th>
+      <th data-no-sort class="num">ค่าแรงรวม</th><th data-no-sort class="num">ค่าคอมมิชชั่นพิเศษ</th>
+      <th data-no-sort>บิล</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td><span class="tag">{{ 'หัวหน้าช่าง' if r.role == 'technician_lead' else 'ช่าง' }}</span></td>
+      <td>{{ r.center_name or '-' }}</td>
+      <td class="num">{{ r.closed_count }}</td>
+      <td class="num">{{ r.bonus_case_count }}</td>
+      <td class="num">{{ "%.2f"|format(r.total_labor) }}</td>
+      <td class="num" style="font-weight:700; {% if r.total_commission > 0 %}color:#b8860b;{% endif %}">{{ "%.2f"|format(r.total_commission) }}</td>
+      <td>
+        {% if r.bonus_case_count > 0 %}
+        <a class="btn small secondary" target="_blank"
+           href="/admin/commission-report/{{ r.user_id }}/bill/print?year={{ year }}&month={{ month }}&half={{ half }}">🧾 พิมพ์บิล</a>
+        {% else %}
+        <span class="hint">-</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" style="text-align:center; color:#888;">ไม่มีข้อมูลช่าง/หัวหน้าช่างในเงื่อนไขนี้</td></tr>
+    {% endfor %}
+  </table>
+  <p class="hint" style="margin-top:8px;">เคสที่ 1-{{ bonus_case_rank - 1 }} ของแต่ละคนในงวด ไม่มีค่าคอมมิชชั่นพิเศษ (นับตามลำดับวันที่ปิดงาน)</p>
+</div>
+{% endblock %}

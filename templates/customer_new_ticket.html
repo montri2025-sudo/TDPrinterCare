@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}แจ้งซ่อมใหม่{% endblock %}
+{% block extra_head %}
+{% if centers_with_geo %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>แจ้งซ่อมใหม่</h1>
+<div class="card" style="max-width:700px;">
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+  {% if not devices %}
+    <p>ยังไม่มีเครื่องพิมพ์ในบัญชีของคุณ กรุณาติดต่อแอดมินเพื่อลงทะเบียนเครื่อง</p>
+  {% else %}
+  <form method="post" action="/customer/new" enctype="multipart/form-data" onsubmit="return validateBranch()">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    {% if centers %}
+    <label>เลือกสาขาที่ต้องการเข้ารับบริการ</label>
+    {% if centers_with_geo %}
+    <div style="margin-bottom:8px;">
+      <button type="button" class="btn small secondary" onclick="locateNearest()">📍 ค้นหาสาขาใกล้ฉันอัตโนมัติ</button>
+      <p id="nearest-status" class="hint" style="margin-top:4px;">คลิกปุ่มด้านบนให้ระบบเลือกสาขาที่ใกล้คุณที่สุดอัตโนมัติ (ต้องอนุญาตการเข้าถึงตำแหน่ง) หรือคลิกหมุดบนแผนที่/การ์ดสาขาด้านล่างเพื่อเลือกเอง</p>
+    </div>
+    <div id="branch-map" style="height:320px; border-radius:8px; margin-bottom:8px; border:1px solid #ddd;"></div>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; font-size:12px;">
+      <span><span style="width:11px; height:11px; border-radius:50%; background:#8e44ad; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> FDM + Resin</span>
+      <span><span style="width:11px; height:11px; border-radius:50%; background:#2e5395; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> FDM เท่านั้น</span>
+      <span><span style="width:11px; height:11px; border-radius:50%; background:#e67e22; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> Resin เท่านั้น</span>
+      <span><span style="width:11px; height:11px; border-radius:50%; background:#ccc; display:inline-block; border:3px solid #f1c40f;"></span> ขอบสีทอง = จำหน่ายสินค้าได้ด้วย</span>
+    </div>
+    {% endif %}
+    {% macro branch_card(c) %}
+      <div class="center-card" data-center-id="{{ c.center_id }}" data-center-name="{{ c.name }}"
+           onclick='selectCenter({{ c.center_id }}, {{ c.name|tojson }})'
+           style="border:2px solid #ddd; border-radius:8px; padding:10px 14px; cursor:pointer; min-width:180px; flex:1; background:#fff;">
+        <b>{{ c.name }}</b>
+        <div style="font-size:12px; color:#666;">{{ c.address or '-' }}</div>
+        {% if c.phone %}<div style="font-size:12px; color:#666;">{{ c.phone }}</div>{% endif %}
+        <div style="font-size:12px; margin-top:4px;">
+          <span style="width:9px; height:9px; border-radius:50%; background:{{ c.marker_color }}; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span>
+          {{ c.type_label }}
+          {% if c.sells_products %}<span style="color:#b8860b;">· จำหน่ายสินค้า</span>{% endif %}
+        </div>
+      </div>
+    {% endmacro %}
+    <p class="hint" style="margin-bottom:6px;">แสดง {{ centers|length }} สาขาที่คุณเคยเข้ารับบริการล่าสุด{% if all_centers|length > centers|length %} —
+      <a href="#" onclick="toggleAllBranches(); return false;" id="show-all-branches-link"
+         data-show-text="ดูศูนย์บริการทั้งหมด ({{ all_centers|length }} แห่ง) →"
+         data-hide-text="← แสดงเฉพาะสาขาที่เคยใช้บริการ">ดูศูนย์บริการทั้งหมด ({{ all_centers|length }} แห่ง) →</a>
+    {% endif %}</p>
+    <div id="branch-list" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+      {% for c in centers %}{{ branch_card(c) }}{% endfor %}
+    </div>
+    {% if all_centers|length > centers|length %}
+    <div id="branch-list-all" style="display:none; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+      {% for c in all_centers %}{{ branch_card(c) }}{% endfor %}
+    </div>
+    {% endif %}
+    <p id="selected-center-label" class="hint">ยังไม่ได้เลือกสาขา — คลิกหมุดบนแผนที่หรือการ์ดสาขาด้านบน</p>
+    <input type="hidden" name="center_id" id="center_id_input" value="">
+    {% endif %}
+
+    <label>เลือกเครื่องพิมพ์</label>
+    <select name="device_sn" required>
+      {% for d in devices %}
+      <option value="{{ d.device_sn }}" {% if d.has_open_ticket %}disabled{% endif %}>
+        {{ d.model }} ({{ d.device_sn }}){% if d.has_open_ticket %} — มีตั๋วซ่อมค้างอยู่ รอซ่อมเสร็จก่อน{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    {% if devices|selectattr('has_open_ticket')|list %}
+    <p class="hint">เครื่องที่ขึ้น "มีตั๋วซ่อมค้างอยู่" เลือกแจ้งซ่อมซ้ำไม่ได้ จนกว่าตั๋วเดิมจะซ่อมเสร็จ (สถานะ "เรียบร้อยแล้ว") ก่อน</p>
+    {% endif %}
+
+    <label>วิธีการแจ้งซ่อม</label>
+    <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:6px;">
+      <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+        <input type="radio" name="ticket_mode" value="now" checked onchange="toggleBookingFields()"> แจ้งซ่อมทันที (ไม่ระบุวันนัด)
+      </label>
+      <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+        <input type="radio" name="ticket_mode" value="booking" onchange="toggleBookingFields()"> 🗓️ จองวันและเวลาเข้ารับบริการ
+      </label>
+    </div>
+    <div id="bookingFields" style="display:none; margin-bottom:10px; padding:10px 12px; background:var(--bg); border-radius:var(--radius-sm);">
+      <label>วันที่นัดหมาย</label>
+      <input type="date" name="booking_date" id="bookingDateInput">
+      <label>ช่วงเวลา</label>
+      <select name="booking_time_slot" id="bookingSlotInput">
+        <option value="">-- เลือกช่วงเวลา --</option>
+        {% for slot in booking_time_slots %}
+        <option value="{{ slot }}">{{ slot }}</option>
+        {% endfor %}
+      </select>
+      <p class="hint" style="margin-top:4px;">ทีมงานจะเตรียมรับเครื่องของคุณตามวันเวลาที่จองไว้ — สถานะยังคงเป็น "รอซ่อม" จนกว่าเจ้าหน้าที่จะคัดกรอง/มอบหมายช่างต่อไป</p>
+    </div>
+
+    <label>ประเภทปัญหา</label>
+    <select name="issue_category">
+      <option>พิมพ์ไม่ติด</option>
+      <option>เปิดไม่ติด</option>
+      <option>เสียงดัง</option>
+      <option>จอ/หน้าจอเสีย</option>
+      <option>เฟิร์มแวร์/ซอฟต์แวร์</option>
+      <option>อื่นๆ</option>
+    </select>
+    <label>รายละเอียดปัญหา</label>
+    <textarea name="description" rows="4" placeholder="อธิบายอาการที่พบ"></textarea>
+    <label>รูปภาพประกอบ (สูงสุด {{ max_images }} รูป)</label>
+    <input type="file" name="images" accept="image/*" multiple>
+    <label>วิดีโอประกอบ (สูงสุด 1 คลิป ไม่เกิน {{ max_video_mb }} MB)</label>
+    <input type="file" name="video" accept="video/*">
+    <button class="btn" type="submit">ส่งเรื่องแจ้งซ่อม</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if centers_with_geo %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+{% endif %}
+<script>
+  function validateBranch() {
+    {% if centers %}
+    var v = document.getElementById('center_id_input').value;
+    if (!v) {
+      alert('กรุณาเลือกสาขาที่ต้องการเข้ารับบริการ');
+      return false;
+    }
+    {% endif %}
+    var mode = document.querySelector('input[name="ticket_mode"]:checked').value;
+    if (mode === 'booking') {
+      if (!document.getElementById('bookingDateInput').value || !document.getElementById('bookingSlotInput').value) {
+        alert('กรุณาเลือกวันที่และช่วงเวลาที่ต้องการนัดหมาย');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  document.getElementById('bookingDateInput').min = new Date().toISOString().slice(0, 10);
+
+  function toggleBookingFields() {
+    var mode = document.querySelector('input[name="ticket_mode"]:checked').value;
+    document.getElementById('bookingFields').style.display = (mode === 'booking') ? 'block' : 'none';
+  }
+
+  function selectCenter(id, name) {
+    document.getElementById('center_id_input').value = id;
+    document.getElementById('selected-center-label').textContent = 'เลือกแล้ว: ' + name;
+    document.getElementById('selected-center-label').className = 'ok';
+    document.querySelectorAll('.center-card').forEach(function (el) {
+      var picked = String(el.dataset.centerId) === String(id);
+      el.style.borderColor = picked ? '#2e5395' : '#ddd';
+      el.style.background = picked ? '#eef3fb' : '#fff';
+    });
+  }
+
+  function toggleAllBranches() {
+    var recent = document.getElementById('branch-list');
+    var all = document.getElementById('branch-list-all');
+    var link = document.getElementById('show-all-branches-link');
+    if (!all) return;
+    var showingAll = all.style.display !== 'none';
+    all.style.display = showingAll ? 'none' : 'flex';
+    recent.style.display = showingAll ? 'flex' : 'none';
+    link.textContent = showingAll ? link.dataset.showText : link.dataset.hideText;
+  }
+
+  {% if preferred_center_id %}
+  (function () {
+    var card = document.querySelector('.center-card[data-center-id="{{ preferred_center_id }}"]');
+    if (card) { selectCenter({{ preferred_center_id }}, card.dataset.centerName); }
+  })();
+  {% endif %}
+
+  {% if centers_with_geo %}
+  function distanceKm(lat1, lng1, lat2, lng2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function locateNearest() {
+    var statusEl = document.getElementById('nearest-status');
+    if (!navigator.geolocation) {
+      statusEl.textContent = 'เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง กรุณาเลือกสาขาด้วยตนเอง';
+      statusEl.className = 'warning';
+      return;
+    }
+    statusEl.textContent = 'กำลังค้นหาตำแหน่งของคุณ...';
+    statusEl.className = 'hint';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var myLat = pos.coords.latitude, myLng = pos.coords.longitude;
+      var centersGeo = [
+        {% for c in centers_with_geo %}
+        { id: {{ c.center_id }}, name: {{ c.name|tojson }}, lat: {{ c.latitude }}, lng: {{ c.longitude }} }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ];
+      var nearest = null, nearestDist = Infinity;
+      centersGeo.forEach(function (c) {
+        var d = distanceKm(myLat, myLng, c.lat, c.lng);
+        if (d < nearestDist) { nearestDist = d; nearest = c; }
+      });
+      if (nearest) {
+        selectCenter(nearest.id, nearest.name);
+        statusEl.textContent = 'เลือกสาขาใกล้ที่สุดให้อัตโนมัติ: ' + nearest.name + ' (ห่างประมาณ ' + nearestDist.toFixed(1) + ' กม.)';
+        statusEl.className = 'ok';
+        branchMap.setView([nearest.lat, nearest.lng], 14);
+      }
+    }, function (err) {
+      statusEl.textContent = 'ไม่สามารถระบุตำแหน่งได้ (' + (err.message || 'ปฏิเสธการเข้าถึงตำแหน่ง') + ') กรุณาเลือกสาขาด้วยตนเอง';
+      statusEl.className = 'warning';
+    });
+  }
+
+  var branchMap = L.map('branch-map');
+  var branchBounds = [];
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(branchMap);
+  {% for c in centers_with_geo %}
+  (function () {
+    var marker = L.circleMarker([{{ c.latitude }}, {{ c.longitude }}], {
+      radius: 10, color: {{ ('#f1c40f' if c.sells_products else '#fff')|tojson }}, weight: {{ 3 if c.sells_products else 2 }},
+      fillColor: {{ c.marker_color|tojson }}, fillOpacity: 0.9
+    }).addTo(branchMap);
+    marker.bindPopup({{ (c.name ~ '<br>' ~ (c.address or '') ~ '<br><b>รับซ่อม: ' ~ c.type_label ~ '</b>' ~ ('<br><b style=\"color:#b8860b;\">จำหน่ายสินค้า</b>' if c.sells_products else ''))|tojson }});
+    marker.on('click', function () { selectCenter({{ c.center_id }}, {{ c.name|tojson }}); });
+    branchBounds.push([{{ c.latitude }}, {{ c.longitude }}]);
+  })();
+  {% endfor %}
+  if (branchBounds.length === 1) { branchMap.setView(branchBounds[0], 14); }
+  else { branchMap.fitBounds(branchBounds, { padding: [30, 30] }); }
+  {% endif %}
+</script>
+{% endblock %}

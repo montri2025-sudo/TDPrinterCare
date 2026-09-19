@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <rect width="800" height="450" fill="#eef1f5"/>
+  <rect x="1" y="1" width="798" height="448" fill="none" stroke="#d5dae2" stroke-width="2"/>
+  <g fill="#9aa5b1">
+    <circle cx="400" cy="185" r="34"/>
+  </g>
+  <g fill="#eef1f5">
+    <rect x="382" y="170" width="36" height="26" rx="3"/>
+    <circle cx="400" cy="184" r="9"/>
+  </g>
+  <text x="400" y="255" font-family="Arial, sans-serif" font-size="20" fill="#6b7684" text-anchor="middle">ภาพหน้าจอกำลังจะเพิ่มเร็วๆ นี้</text>
+</svg>

@@ -1,0 +1,58 @@
+<svg viewBox="0 0 1024 1180" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>TD ServicePro logo</title>
+<defs>
+  <linearGradient id="frameGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#22c9e6"/>
+    <stop offset="55%" stop-color="#3f7fe0"/>
+    <stop offset="100%" stop-color="#6c4fd6"/>
+  </linearGradient>
+  <linearGradient id="flameGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%" stop-color="#8fe6f5"/>
+    <stop offset="45%" stop-color="#2fb9dd"/>
+    <stop offset="100%" stop-color="#1f8fc7"/>
+  </linearGradient>
+  <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#3f5fc9"/>
+    <stop offset="100%" stop-color="#6c4fd6"/>
+  </linearGradient>
+</defs>
+
+<rect x="188" y="88" width="648" height="648" rx="96" fill="none" stroke="url(#frameGrad)" stroke-width="14"/>
+<rect x="238" y="152" width="424" height="424" rx="34" fill="none" stroke="url(#frameGrad)" stroke-width="12"
+      stroke-dasharray="900" stroke-dashoffset="0"/>
+
+<g fill="none" stroke="url(#frameGrad)" stroke-width="7" stroke-linecap="round">
+  <path d="M198 168 C168 168 168 138 198 138 C168 138 168 108 198 108"/>
+  <path d="M188 300 C160 300 160 270 188 270"/>
+  <circle cx="196" cy="230" r="6" fill="url(#frameGrad)" stroke="none"/>
+  <path d="M470 96 C520 78 560 108 606 92"/>
+  <path d="M826 656 C856 656 856 686 826 686 C856 686 856 716 826 716"/>
+  <path d="M836 524 C864 524 864 554 836 554"/>
+  <circle cx="828" cy="594" r="6" fill="url(#frameGrad)" stroke="none"/>
+  <path d="M554 728 C504 746 464 716 418 732"/>
+</g>
+
+<path d="M400 152 L400 210 C400 234 420 234 420 234 L560 234 C580 234 580 214 580 214 L580 190 L636 190 L636 234 C636 268 606 268 606 268 L420 268 C376 268 366 234 366 210 L366 152 Z"
+      fill="none" stroke="url(#frameGrad)" stroke-width="12" stroke-linejoin="round"/>
+<path d="M606 268 L586 300 L626 300 Z" fill="url(#frameGrad)"/>
+
+<g fill="url(#flameGrad)">
+  <path d="M512 330 C542 380 566 410 566 452 C566 494 540 520 512 520 C484 520 458 494 458 452 C458 410 482 380 512 330 Z"/>
+  <path d="M512 366 C534 402 552 424 552 456 C552 487 534 508 512 508 C490 508 472 487 472 456 C472 424 490 402 512 366 Z" fill="#e9fbff" opacity="0.55"/>
+  <path d="M424 402 C450 424 466 448 460 476 C454 502 428 514 406 504 C384 494 376 468 388 446 C398 428 410 414 424 402 Z"/>
+  <path d="M600 402 C574 424 558 448 564 476 C570 502 596 514 618 504 C640 494 648 468 636 446 C626 428 614 414 600 402 Z"/>
+  <path d="M462 466 C480 486 490 508 480 530 C470 550 444 556 428 542 C412 528 410 504 424 486 C436 472 450 468 462 466 Z"/>
+  <path d="M562 466 C544 486 534 508 544 530 C554 550 580 556 596 542 C612 528 614 504 600 486 C588 472 574 468 562 466 Z"/>
+  <path d="M512 470 C528 494 538 514 530 538 C522 560 500 568 484 556 C468 544 464 522 476 502 C486 486 500 476 512 470 Z"/>
+</g>
+<path d="M512 400 C526 424 534 440 534 460 C534 482 522 496 512 496 C502 496 490 482 490 460 C490 440 498 424 512 400 Z" fill="#ffffff" opacity="0.6"/>
+
+<path d="M512 560 L512 592" stroke="url(#flameGrad)" stroke-width="10" stroke-linecap="round"/>
+
+<path d="M330 616 L694 616 L654 706 L370 706 Z" fill="none" stroke="url(#frameGrad)" stroke-width="12" stroke-linejoin="round"/>
+<ellipse cx="512" cy="706" rx="24" ry="7" fill="url(#frameGrad)" opacity="0.35"/>
+
+<text x="512" y="940" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="150" font-weight="800" fill="url(#textGrad)">TD</text>
+<text x="512" y="1042" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="800" fill="url(#textGrad)">ServicePro</text>
+<text x="512" y="1108" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700" fill="#4a3f8f">By Deenaja</text>
+</svg>

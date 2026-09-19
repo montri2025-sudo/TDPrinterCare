@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}ShareSpace{% endblock %}
+{% block content %}
+<style>
+  .activities-toolbar { display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
+  .activities-toolbar input[name="q"] { width:100%; }
+  .activities-filter-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .activities-filter-row .date-range-box {
+    display:flex; align-items:center; gap:6px; border:1px solid var(--grey-bg); border-radius:8px;
+    padding:5px 10px; background:#fff;
+  }
+  .activities-filter-row .date-range-box input[type="date"] { border:none; padding:2px; font-size:13.5px; }
+  .activities-filter-row select {
+    border:1px solid var(--grey-bg); border-radius:8px; padding:7px 10px; font-size:13.5px; background:#fff;
+  }
+  .activities-summary-row {
+    display:flex; justify-content:space-between; align-items:center; margin:4px 2px 8px;
+    font-size:13.5px; color:var(--muted);
+  }
+  .activities-summary-row select { border:1px solid var(--grey-bg); border-radius:8px; padding:4px 8px; font-size:13px; }
+  .activity-card { display:flex; align-items:center; gap:14px; padding:14px 6px; border-bottom:1px solid var(--grey-bg); }
+  .activity-card:last-child { border-bottom:none; }
+  .activity-icon {
+    width:40px; height:40px; border-radius:10px; background:var(--grey-bg);
+    display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;
+  }
+  .activity-main { flex:1; min-width:0; }
+  .activity-main .activity-title { font-weight:700; text-decoration:none; color:var(--ink); }
+  .activity-main .activity-title:hover { text-decoration:underline; }
+  .activity-main .activity-sub { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .activity-date { font-size:13px; color:var(--muted); width:110px; flex-shrink:0; }
+  .activity-status { width:120px; flex-shrink:0; display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+  .action-menu { position:relative; flex-shrink:0; }
+  .action-menu-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:2px 10px; border-radius:6px; color:var(--muted); line-height:1; }
+  .action-menu-btn:hover { background:var(--grey-bg); }
+  .action-menu-list {
+    display:none; position:absolute; right:0; top:100%; margin-top:4px; background:#fff;
+    border:1px solid var(--grey-bg); border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.14);
+    min-width:170px; z-index:20; overflow:hidden;
+  }
+  .action-menu-list.open { display:block; }
+  .action-menu-list a, .action-menu-list button {
+    display:block; width:100%; text-align:left; padding:9px 14px; font-size:13.5px; border:none;
+    background:none; cursor:pointer; color:var(--ink); text-decoration:none; font-family:inherit;
+  }
+  .action-menu-list a:hover, .action-menu-list button:hover { background:var(--grey-bg); }
+  .action-menu-list button.danger { color:var(--red-fg); }
+  .action-menu-list form { margin:0; }
+  .activity-download-btn {
+    display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px;
+    color:var(--brand); text-decoration:none; font-size:16px; flex-shrink:0;
+  }
+  .activity-download-btn:hover { background:var(--grey-bg); }
+</style>
+
+<div class="card" style="display:flex; align-items:center; gap:22px; padding:14px 20px; margin-bottom:14px;">
+  <span style="font-weight:800; font-size:16px; color:var(--brand);">🔗 ShareSpace</span>
+  <a href="/admin/activities?tab=marketing"
+     style="font-weight:{{ '800' if tab == 'marketing' else '500' }}; color:{{ 'var(--ink)' if tab == 'marketing' else 'var(--muted)' }}; text-decoration:none;">Marketing</a>
+  <a href="/admin/activities?tab=technical"
+     style="font-weight:{{ '800' if tab == 'technical' else '500' }}; color:{{ 'var(--ink)' if tab == 'technical' else 'var(--muted)' }}; text-decoration:none;">Technical</a>
+</div>
+
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+  <div>
+    <h1>รายการกิจกรรม</h1>
+    <p class="hint" style="margin-top:-6px;">ค้นหาและกรองกิจกรรม{{ category_labels.get(tab, tab) }}ตามช่วงวันที่หรือสถานะ</p>
+  </div>
+  <a href="/admin/activities/new?category={{ tab }}" class="btn">+ สร้างกิจกรรม</a>
+</div>
+
+<div class="card">
+  <form method="get" id="activityFilterForm" class="activities-toolbar">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="🔍 ค้นหาชื่อกิจกรรมหรือคำอธิบาย" autocomplete="off">
+    <div class="activities-filter-row">
+      <div class="date-range-box">
+        📅
+        <input type="date" name="from" value="{{ date_from }}" onchange="document.getElementById('activityFilterForm').submit();">
+        <span class="hint">–</span>
+        <input type="date" name="to" value="{{ date_to }}" onchange="document.getElementById('activityFilterForm').submit();">
+      </div>
+      <select name="status" onchange="document.getElementById('activityFilterForm').submit();">
+        <option value="all" {{ 'selected' if status_filter == 'all' else '' }}>ทุกสถานะ</option>
+        <option value="draft" {{ 'selected' if status_filter == 'draft' else '' }}>🟡 ฉบับร่าง</option>
+        <option value="published" {{ 'selected' if status_filter == 'published' else '' }}>✅ เผยแพร่แล้ว</option>
+      </select>
+      <input type="hidden" name="sort" value="{{ sort }}">
+    </div>
+  </form>
+
+  <div class="activities-summary-row">
+    <span>พบ {{ activities|length }} กิจกรรม</span>
+    <span>
+      เรียงตาม:
+      <select onchange="setActivitySortParam(this.value)">
+        <option value="latest" {{ 'selected' if sort == 'latest' else '' }}>วันที่ล่าสุด</option>
+        <option value="event_date" {{ 'selected' if sort == 'event_date' else '' }}>วันที่จัดกิจกรรม</option>
+        <option value="name" {{ 'selected' if sort == 'name' else '' }}>ชื่อ A-Z</option>
+      </select>
+    </span>
+  </div>
+
+  {% if activities %}
+  <div id="activitiesList">
+    {% for a in activities %}
+    {% set tab_file_count = a.marketing_count if tab == 'marketing' else a.technical_count %}
+    {% set tab_size_bytes = a.marketing_size_bytes if tab == 'marketing' else a.technical_size_bytes %}
+    <div class="activity-card"
+         data-search-text="{{ (a.title ~ ' ' ~ (a.marketing_description or '') ~ ' ' ~ (a.technical_description or ''))|lower }}">
+      <div class="activity-icon">{{ ['✨', '🔷', '⚪', '🔲', '🎯', '🔶'][a.activity_id % 6] }}</div>
+      <div class="activity-main">
+        <a href="/admin/activities/{{ a.activity_id }}/edit" class="activity-title">{{ a.title }}</a>
+        {% if not a.category %}<span class="tag" style="background:var(--grey-bg); color:var(--grey-fg); margin-left:4px;">🔀 ผสม (เดิม)</span>{% endif %}
+        <div class="activity-sub">
+          {{ tab_file_count }} ไฟล์ · {{ tab_size_bytes|filesizeformat }}
+          {% if not a.category and (a.marketing_count + a.technical_count) > tab_file_count %}
+          <span title="รวมอีกหมวดที่ไม่ได้แสดงในแท็บนี้">(รวมทุกหมวด {{ a.marketing_count + a.technical_count }} ไฟล์ · {{ a.total_size_bytes|filesizeformat }})</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="activity-date">{{ a.event_date or '-' }}</div>
+      <div class="activity-status">
+        {% if a.status == 'published' %}
+        <span class="tag" style="background:#e8f5e9; color:#2e7d32;">✅ เผยแพร่แล้ว</span>
+        {% else %}
+        <span class="tag" style="background:var(--amber-bg); color:var(--amber-fg);">🟡 ฉบับร่าง</span>
+        {% endif %}
+        {% if a.is_public %}
+        <span class="tag" style="background:var(--blue-bg); color:var(--grad-mid);" title="ใครก็ตามที่มีลิงก์เข้าถึงได้โดยไม่ต้อง login">🌐 Public</span>
+        {% endif %}
+      </div>
+      {% if tab_file_count > 0 %}
+      <a href="/sharespace-zip/{{ a.activity_id }}/{{ tab }}" class="activity-download-btn"
+         title="ดาวน์โหลดไฟล์{{ category_labels.get(tab, tab) }}ทั้งหมด ({{ tab_file_count }} ไฟล์)">📥</a>
+      {% else %}
+      <span class="activity-download-btn" style="color:var(--grey-fg); cursor:default;" title="ยังไม่มีไฟล์ในหมวดนี้">📥</span>
+      {% endif %}
+      <div class="action-menu">
+        <button type="button" class="action-menu-btn" onclick="toggleActionMenu(event, {{ a.activity_id }})" title="เมนู">⋮</button>
+        <div class="action-menu-list" id="actionMenu{{ a.activity_id }}">
+          <a href="/admin/activities/{{ a.activity_id }}/edit">✏️ แก้ไข</a>
+          {% if tab_file_count > 0 %}
+          <a href="/sharespace-zip/{{ a.activity_id }}/{{ tab }}">📥 ดาวน์โหลดไฟล์ (zip)</a>
+          {% endif %}
+          <form method="post" action="/admin/activities/{{ a.activity_id }}/duplicate">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">📄 คัดลอก</button>
+          </form>
+          {% if a.is_public %}
+          <button type="button" onclick="copyPublicLink({{ a.activity_id }})">🔗 คัดลอกลิงก์สาธารณะ</button>
+          <form method="post" action="/admin/activities/{{ a.activity_id }}/toggle-public">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">🚫 ปิดลิงก์สาธารณะ</button>
+          </form>
+          {% else %}
+          <form method="post" action="/admin/activities/{{ a.activity_id }}/toggle-public">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">🌐 เปิดลิงก์สาธารณะ</button>
+          </form>
+          {% endif %}
+          {% if a.status == 'published' %}
+          <form method="post" action="/admin/activities/{{ a.activity_id }}/unpublish">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">🔁 เปลี่ยนเป็นฉบับร่าง</button>
+          </form>
+          {% else %}
+          <form method="post" action="/admin/activities/{{ a.activity_id }}/publish">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">🚀 เผยแพร่</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/admin/activities/{{ a.activity_id }}/delete"
+                onsubmit="return confirm('ลบกิจกรรม {{ a.title }}? ไฟล์แนบทั้งหมดจะถูกลบด้วย');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">🗑️ ลบ</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="hint">ไม่พบกิจกรรมตามเงื่อนไขที่เลือก — ลองปรับตัวกรองหรือช่วงวันที่ดู</p>
+  {% endif %}
+</div>
+
+<script>
+  function toggleActionMenu(evt, id) {
+    evt.stopPropagation();
+    var target = document.getElementById('actionMenu' + id);
+    document.querySelectorAll('.action-menu-list.open').forEach(function (el) {
+      if (el !== target) el.classList.remove('open');
+    });
+    target.classList.toggle('open');
+  }
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.action-menu-list.open').forEach(function (el) { el.classList.remove('open'); });
+  });
+
+  function setActivitySortParam(value) {
+    var url = new URL(window.location.href);
+    url.searchParams.set('sort', value);
+    window.location.href = url.toString();
+  }
+
+  function copyPublicLink(activityId) {
+    var url = window.location.origin + '/s/' + activityId;
+    navigator.clipboard.writeText(url).then(function () {
+      alert('คัดลอกลิงก์แล้ว: ' + url);
+    }).catch(function () {
+      prompt('คัดลอกลิงก์นี้:', url);
+    });
+  }
+
+  // ค้นหาแบบ instant (กรองจากรายการที่โหลดมาแล้วในหน้านี้ทันทีที่พิมพ์ ไม่ต้องรอโหลดหน้าใหม่)
+  var activitySearchInput = document.querySelector('#activityFilterForm input[name="q"]');
+  if (activitySearchInput) {
+    activitySearchInput.addEventListener('input', function () {
+      var term = activitySearchInput.value.trim().toLowerCase();
+      document.querySelectorAll('.activity-card').forEach(function (card) {
+        var text = card.getAttribute('data-search-text') || '';
+        card.style.display = text.indexOf(term) === -1 ? 'none' : '';
+      });
+    });
+  }
+</script>
+{% endblock %}
