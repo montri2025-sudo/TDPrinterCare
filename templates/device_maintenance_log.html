@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}บันทึกบำรุงรักษา — {{ device.model }}{% endblock %}
+{% block content %}
+<a href="javascript:history.back()">← กลับ</a>
+<h1>🛠️ บันทึกบำรุงรักษา — {{ device.model }}</h1>
+<p class="hint" style="margin-top:-6px;">{{ device.device_sn }} — บันทึกได้เองไม่ต้องรอช่าง (ใช้เป็นหลักฐานอ้างอิงคำนวณรอบบำรุงรักษาครั้งถัดไป)</p>
+
+<div class="card" style="max-width:640px;">
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+  <form method="post" action="/device/{{ device.device_sn|urlencode }}/maintenance/log">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label>งานบำรุงรักษาที่ทำ (ถ้าตรงกับแผนที่มีอยู่ — เลือกได้มากกว่า 1 งาน)</label>
+    {% if plan_items %}
+    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;">
+      {% for p in plan_items %}
+      <label style="display:flex; align-items:flex-start; gap:6px; font-weight:400;">
+        <input type="checkbox" name="plan_{{ p.plan_item_id }}" value="1" style="width:auto; margin-top:3px;">
+        <span>{{ p.task_name }} <span class="hint">(ทุก {{ p.interval_value }} {{ interval_labels.get(p.interval_type, p.interval_type) }})</span></span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <p class="hint" style="margin-top:0;">ติ๊กงานตามแผนที่ทำจริง (เลือกได้หลายงาน) — ระบบจะคำนวณรอบบำรุงรักษาครั้งถัดไปของแต่ละงานที่ติ๊กให้อัตโนมัติ ถ้าไม่ติ๊กงานไหนเลยจะถือเป็นบันทึกอิสระไม่ผูกกับแผนงาน</p>
+
+    <label>วันที่บำรุงรักษา</label>
+    <input type="date" name="performed_at" value="{{ today }}" required>
+
+    <label>ชั่วโมงใช้งานสะสมของเครื่อง ณ ตอนนี้ (ไม่บังคับ)</label>
+    <input type="number" name="hours_at_maintenance" min="0" step="0.1" placeholder="ปัจจุบันสะสม {{ '%.0f'|format(device.total_usage_hours) }} ชม. (เว้นว่าง = ใช้ค่านี้)">
+
+    <label>อะไหล่ที่เปลี่ยน (ถ้ามี)</label>
+    <textarea name="parts_replaced" rows="2" placeholder="เช่น หัวฉีด 0.4mm, สายพาน GT2"></textarea>
+
+    <label>หมายเหตุ</label>
+    <textarea name="notes" rows="3" placeholder="รายละเอียดเพิ่มเติม"></textarea>
+
+    <button class="btn" type="submit">บันทึกบำรุงรักษา</button>
+  </form>
+</div>
+{% endblock %}

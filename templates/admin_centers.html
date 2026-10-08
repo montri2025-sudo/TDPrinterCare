@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}ศูนย์บริการ{% endblock %}
+{% block content %}
+<h1>📍 ศูนย์บริการ</h1>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>+ เพิ่มศูนย์บริการใหม่</h2>
+  <form method="post" action="/admin/centers/new" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <div><label>ชื่อศูนย์บริการ</label><input type="text" name="name" placeholder="เช่น TD ServicePro สาขาสุขุมวิท" required></div>
+      <div><label>เบอร์โทร</label><input type="text" name="phone"></div>
+      <div style="grid-column: 1 / -1;"><label>ที่อยู่</label><input type="text" name="address"></div>
+      <div><label>ละติจูด (Latitude)</label><input type="text" name="latitude" placeholder="เช่น 13.7440"></div>
+      <div><label>ลองจิจูด (Longitude)</label><input type="text" name="longitude" placeholder="เช่น 100.5622"></div>
+      <div><label>เลขประจำตัวผู้เสียภาษี</label><input type="text" name="tax_id" placeholder="13 หลัก" maxlength="20"></div>
+      <div><label>อีเมล</label><input type="email" name="email" placeholder="เช่น contact@example.com"></div>
+      <div><label>เว็บไซต์</label><input type="text" name="website" placeholder="เช่น tdprinter.com"></div>
+      <div><label>ธนาคาร (สำหรับรับชำระเงิน)</label><input type="text" name="bank_name" placeholder="เช่น SCB"></div>
+      <div><label>เลขบัญชีธนาคาร</label><input type="text" name="bank_account_number" placeholder="เช่น 414-0-55812-9"></div>
+      <div style="grid-column: 1 / -1;">
+        <label style="font-weight:normal; display:inline-block;">
+          <input type="checkbox" name="is_headquarters" value="1" style="width:auto;"> ตั้งเป็น "สำนักงานใหญ่" (ใช้ข้อมูลสาขานี้เป็นผู้ส่งบนใบส่งสินค้า/ช่องทางชำระเงินบนใบเสนอราคาอัตโนมัติ — มีได้สาขาเดียว)
+        </label>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>ประเภทเครื่องพิมพ์ที่รับซ่อม</label>
+        <label style="font-weight:normal; display:inline-block; margin-right:16px;">
+          <input type="checkbox" name="supports_fdm" value="1" checked style="width:auto;"> FDM
+        </label>
+        <label style="font-weight:normal; display:inline-block;">
+          <input type="checkbox" name="supports_resin" value="1" checked style="width:auto;"> Resin
+        </label>
+        <p class="hint" style="margin-top:2px;">ถ้าศูนย์นี้ไม่รับซ่อมเลย (ขายสินค้าอย่างเดียว) ให้เอาติ๊กออกทั้ง 2 ช่อง แล้วติ๊ก "จำหน่ายสินค้า" ด้านล่างแทน</p>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label style="font-weight:normal; display:inline-block;">
+          <input type="checkbox" name="sells_products" value="1" style="width:auto;"> สาขานี้จำหน่ายสินค้า (ขายหน้าร้าน) ได้ด้วย
+        </label>
+      </div>
+      <div><label>โลโก้สาขา (รูปภาพ)</label><input type="file" name="logo" accept="image/*"></div>
+      <div><label>หนังสือรับรอง (รูปภาพ/PDF)</label><input type="file" name="cert_doc" accept="image/*,application/pdf"></div>
+      <div><label>ภ.พ.20 (รูปภาพ/PDF)</label><input type="file" name="por_por_20" accept="image/*,application/pdf"></div>
+    </div>
+    <p class="hint">หาพิกัดได้จาก Google Maps: คลิกขวาที่ตำแหน่งร้าน แล้วเลือกตัวเลขพิกัดที่ขึ้นมา (คั่นด้วยจุลภาค) — ถ้าไม่ใส่พิกัด ศูนย์นี้จะยังไม่ขึ้นบนแผนที่หน้า Dashboard — ต้องเลือกอย่างน้อย 1 อย่าง: รับซ่อม FDM/Resin หรือ เปิดขายสินค้า — โลโก้สาขาจะแสดงบนหน้าแรกสาธารณะด้วย ส่วนหนังสือรับรอง/ภ.พ.20 เป็นเอกสารภายใน แอดมินเท่านั้นที่เข้าถึงได้ (ไฟล์ละไม่เกิน 5 MB)</p>
+    <button class="btn" type="submit">เพิ่มศูนย์บริการ</button>
+  </form>
+</div>
+
+<div class="card">
+  <table class="sortable">
+    <tr><th>ชื่อศูนย์บริการ</th><th>ที่อยู่</th><th>เบอร์โทร</th><th>เลขภาษี</th><th>พิกัด</th><th>ประเภทที่รับซ่อม</th><th>จำหน่ายสินค้า</th><th>โลโก้/เอกสาร</th><th></th></tr>
+    {% for c in centers %}
+    <tr data-pair-id="center-edit-row-{{ c.center_id }}">
+      <td>{{ c.name }}{% if c.is_headquarters %} <span class="badge" style="background:#1f3864; color:#fff;">🏢 สำนักงานใหญ่</span>{% endif %}</td>
+      <td>{{ c.address or '-' }}</td>
+      <td>{{ c.phone or '-' }}</td>
+      <td>{{ c.tax_id or '-' }}</td>
+      <td>
+        {% if c.latitude and c.longitude %}
+          {{ c.latitude }}, {{ c.longitude }}
+        {% else %}
+          <span class="hint">— ยังไม่ระบุพิกัด —</span>
+        {% endif %}
+      </td>
+      <td>
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+          <span style="width:12px; height:12px; border-radius:50%; background:{{ c.marker_color }}; display:inline-block; border:1px solid rgba(0,0,0,.15);"></span>
+          {{ c.type_label }}
+        </span>
+      </td>
+      <td>
+        {% if c.sells_products %}<span class="ok">✓ ขายได้</span>{% else %}<span class="hint">— ไม่ขาย —</span>{% endif %}
+      </td>
+      <td style="white-space:nowrap;">
+        {% if c.logo_filename %}
+          <img src="/center-logo/{{ c.center_id }}/{{ c.logo_filename }}" alt="โลโก้"
+               style="width:28px; height:28px; object-fit:cover; border-radius:4px; vertical-align:middle; border:1px solid #ddd;">
+        {% endif %}
+        {% if c.cert_doc_filename %}
+          <a href="/center-doc/{{ c.center_id }}/{{ c.cert_doc_filename }}" target="_blank" style="font-size:12px;">หนังสือรับรอง</a>
+        {% endif %}
+        {% if c.por_por_20_filename %}
+          <a href="/center-doc/{{ c.center_id }}/{{ c.por_por_20_filename }}" target="_blank" style="font-size:12px;">ภ.พ.20</a>
+        {% endif %}
+        {% if not c.logo_filename and not c.cert_doc_filename and not c.por_por_20_filename %}
+          <span class="hint">—</span>
+        {% endif %}
+      </td>
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" type="button" onclick="toggleCenterEdit({{ c.center_id }})">แก้ไข</button>
+        <form method="post" action="/admin/centers/{{ c.center_id }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบศูนย์บริการ {{ c.name }}?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="center-edit-row-{{ c.center_id }}" style="display:none; background:#f7f9fc;">
+      <td colspan="9">
+        <form method="post" action="/admin/centers/{{ c.center_id }}/edit" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="grid">
+            <div><label>ชื่อศูนย์บริการ</label><input type="text" name="name" value="{{ c.name }}" required></div>
+            <div><label>เบอร์โทร</label><input type="text" name="phone" value="{{ c.phone or '' }}"></div>
+            <div style="grid-column: 1 / -1;"><label>ที่อยู่</label><input type="text" name="address" value="{{ c.address or '' }}"></div>
+            <div><label>ละติจูด (Latitude)</label><input type="text" name="latitude" value="{{ c.latitude if c.latitude is not none else '' }}"></div>
+            <div><label>ลองจิจูด (Longitude)</label><input type="text" name="longitude" value="{{ c.longitude if c.longitude is not none else '' }}"></div>
+            <div><label>เลขประจำตัวผู้เสียภาษี</label><input type="text" name="tax_id" value="{{ c.tax_id or '' }}" maxlength="20"></div>
+            <div><label>อีเมล</label><input type="email" name="email" value="{{ c.email or '' }}"></div>
+            <div><label>เว็บไซต์</label><input type="text" name="website" value="{{ c.website or '' }}"></div>
+            <div><label>ธนาคาร (สำหรับรับชำระเงิน)</label><input type="text" name="bank_name" value="{{ c.bank_name or '' }}" placeholder="เช่น SCB"></div>
+            <div><label>เลขบัญชีธนาคาร</label><input type="text" name="bank_account_number" value="{{ c.bank_account_number or '' }}"></div>
+            <div style="grid-column: 1 / -1;">
+              <label style="font-weight:normal; display:inline-block;">
+                <input type="checkbox" name="is_headquarters" value="1" {% if c.is_headquarters %}checked{% endif %} style="width:auto;">
+                ตั้งเป็น "สำนักงานใหญ่" (ใช้ข้อมูลสาขานี้เป็นผู้ส่งบนใบส่งสินค้า/ช่องทางชำระเงินบนใบเสนอราคาอัตโนมัติ — มีได้สาขาเดียว)
+              </label>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label>ประเภทเครื่องพิมพ์ที่รับซ่อม</label>
+              <label style="font-weight:normal; display:inline-block; margin-right:16px;">
+                <input type="checkbox" name="supports_fdm" value="1" {% if c.supports_fdm %}checked{% endif %} style="width:auto;"> FDM
+              </label>
+              <label style="font-weight:normal; display:inline-block;">
+                <input type="checkbox" name="supports_resin" value="1" {% if c.supports_resin %}checked{% endif %} style="width:auto;"> Resin
+              </label>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label style="font-weight:normal; display:inline-block;">
+                <input type="checkbox" name="sells_products" value="1" {% if c.sells_products %}checked{% endif %} style="width:auto;"> สาขานี้จำหน่ายสินค้า (ขายหน้าร้าน) ได้ด้วย
+              </label>
+            </div>
+            <div>
+              <label>โลโก้สาขา (รูปภาพ)</label>
+              <input type="file" name="logo" accept="image/*">
+              {% if c.logo_filename %}
+              <label style="font-weight:normal; display:block; margin-top:4px;">
+                <input type="checkbox" name="remove_logo" value="1" style="width:auto;">
+                ลบโลโก้ปัจจุบัน (<a href="/center-logo/{{ c.center_id }}/{{ c.logo_filename }}" target="_blank">ดูรูปปัจจุบัน</a>)
+              </label>
+              {% endif %}
+            </div>
+            <div>
+              <label>หนังสือรับรอง (รูปภาพ/PDF)</label>
+              <input type="file" name="cert_doc" accept="image/*,application/pdf">
+              {% if c.cert_doc_filename %}
+              <label style="font-weight:normal; display:block; margin-top:4px;">
+                <input type="checkbox" name="remove_cert_doc" value="1" style="width:auto;">
+                ลบไฟล์ปัจจุบัน (<a href="/center-doc/{{ c.center_id }}/{{ c.cert_doc_filename }}" target="_blank">ดูไฟล์ปัจจุบัน</a>)
+              </label>
+              {% endif %}
+            </div>
+            <div>
+              <label>ภ.พ.20 (รูปภาพ/PDF)</label>
+              <input type="file" name="por_por_20" accept="image/*,application/pdf">
+              {% if c.por_por_20_filename %}
+              <label style="font-weight:normal; display:block; margin-top:4px;">
+                <input type="checkbox" name="remove_por_por_20" value="1" style="width:auto;">
+                ลบไฟล์ปัจจุบัน (<a href="/center-doc/{{ c.center_id }}/{{ c.por_por_20_filename }}" target="_blank">ดูไฟล์ปัจจุบัน</a>)
+              </label>
+              {% endif %}
+            </div>
+          </div>
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleCenterEdit({{ c.center_id }})">ยกเลิก</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9">ยังไม่มีศูนย์บริการในระบบ</td></tr>
+    {% endfor %}
+  </table>
+  <p class="hint">ลบไม่ได้ถ้ามีผู้ใช้งาน (แอดมิน/ช่าง/ผู้จัดการ/เซล) สังกัดศูนย์นี้อยู่ — ย้ายผู้ใช้งานไปศูนย์อื่นก่อนที่หน้า "ผู้ใช้งาน"</p>
+</div>
+
+<script>
+  function toggleCenterEdit(centerId) {
+    var row = document.getElementById('center-edit-row-' + centerId);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+</script>
+{% endblock %}

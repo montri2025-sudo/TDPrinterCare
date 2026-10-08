@@ -1,0 +1,609 @@
+:root {
+  --grad-start: #22c9e6;
+  --grad-mid: #3f7fe0;
+  --grad-end: #6c4fd6;
+  --brand: #3f7fe0;
+  --brand-dark: #33459e;
+  --ink: #1e2433;
+  --ink-soft: #4b5568;
+  --muted: #7c8598;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --border: #e5e9f2;
+  --border-soft: #eef1f8;
+
+  --green-bg: #dcfce7; --green-fg: #166534;
+  --amber-bg: #fef3c7; --amber-fg: #92400e;
+  --orange-bg: #ffe4d1; --orange-fg: #9a3412;
+  --blue-bg:  #dbeafe; --blue-fg:  #1e40af;
+  --purple-bg:#ede9fe; --purple-fg:#5b21b6;
+  --red-bg:   #fde2e2; --red-fg:   #9f1c1c;
+  --grey-bg:  #eef1f7; --grey-fg:  #475569;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow-sm: 0 1px 2px rgba(20, 24, 40, 0.06);
+  --shadow-md: 0 4px 16px rgba(20, 24, 40, 0.08);
+  --font: "Noto Sans Thai", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Tahoma, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--brand); }
+
+::selection { background: var(--grad-mid); color: #fff; }
+
+/* --------------------------------------------------- clickable cursor -- */
+/* ทุกอิลิเมนต์ที่คลิกได้ (มี onclick ไม่ว่าจะเป็น div/span/tr/th ที่ไม่ใช่ลิงก์โดยธรรมชาติ) ให้แสดง
+   สัญลักษณ์รูปมือ (cursor:pointer) เสมอ ทุกหน้า — ครอบคลุมทั้งที่มี onclick ในหน้า HTML ตรงๆ และที่สร้างผ่าน JS
+   แล้วตั้ง .onclick ด้วยโค้ด (เช่น picker-row ในป๊อปอัปค้นหาต่างๆ ซึ่งมีกฎ cursor:pointer เฉพาะจุดอยู่แล้วด้านล่าง) */
+[onclick] { cursor: pointer; }
+th.sortable-th { cursor: pointer; }
+button:disabled[onclick], .btn:disabled[onclick] { cursor: not-allowed; }
+
+/* ---------------------------------------------------------------- nav -- */
+.topnav {
+  background: linear-gradient(100deg, var(--grad-start) 0%, var(--grad-mid) 50%, var(--grad-end) 100%);
+  color: #fff;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 2px 10px rgba(30, 40, 90, 0.18);
+}
+.topnav > div:first-child {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  row-gap: 6px;
+}
+.topnav .brand { font-weight: 700; font-size: 17px; margin-right: 18px; letter-spacing: 0.2px; }
+.topnav a {
+  color: rgba(255,255,255,0.88);
+  text-decoration: none;
+  margin-right: 4px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.topnav a:hover { color: #fff; background: rgba(255,255,255,0.16); text-decoration: none; }
+.topnav .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.topnav .right > span {
+  font-size: 13px;
+  background: rgba(255,255,255,0.14);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+.sidebar-toggle {
+  background: rgba(255,255,255,0.14);
+  border: none;
+  color: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  margin-right: 12px;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+.sidebar-toggle:hover { background: rgba(255,255,255,0.26); }
+
+/* ------------------------------------------------------------ layout -- */
+.app-layout { display: flex; align-items: flex-start; }
+.sidebar {
+  flex: 0 0 224px;
+  width: 224px;
+  min-height: calc(100vh - 54px);
+  position: sticky;
+  top: 54px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 16px 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 0.18s ease, flex-basis 0.18s ease, padding 0.18s ease;
+}
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+.sidebar nav a {
+  display: block;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sidebar nav a:hover { background: var(--bg); color: var(--brand-dark); text-decoration: none; }
+.main-area { flex: 1 1 auto; min-width: 0; }
+.sidebar-backdrop { display: none; }
+
+/* จอใหญ่: กดปุ่ม ☰ แล้วย่อเมนูให้แคบจนซ่อนไป เนื้อหาหลักขยายเต็มพื้นที่แทน */
+@media (min-width: 881px) {
+  html.sidebar-collapsed .sidebar {
+    flex-basis: 0;
+    width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    border-right: none;
+  }
+}
+
+/* จอเล็ก: เมนูซ่อนเป็นค่าเริ่มต้นเสมอ กดปุ่ม ☰ เพื่อเปิดเป็นแผงลอยทับเนื้อหา */
+@media (max-width: 880px) {
+  .sidebar {
+    position: fixed;
+    top: 54px;
+    left: 0;
+    bottom: 0;
+    width: 240px;
+    flex-basis: 240px;
+    transform: translateX(-100%);
+    z-index: 60;
+    box-shadow: 2px 0 14px rgba(20,24,40,0.2);
+    transition: transform 0.2s ease;
+    min-height: 0;
+  }
+  html.sidebar-mobile-open .sidebar { transform: translateX(0); }
+  html.sidebar-mobile-open .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 54px 0 0 0;
+    background: rgba(15, 20, 40, 0.35);
+    z-index: 55;
+  }
+  .main-area { width: 100%; }
+}
+
+.container { max-width: 1180px; margin: 28px auto; padding: 0 18px 60px; }
+
+h1 { color: var(--ink); font-size: 24px; font-weight: 700; margin: 4px 0 18px; letter-spacing: -0.2px; }
+h2 { color: var(--ink); font-size: 17px; font-weight: 700; margin-top: 30px; margin-bottom: 10px; }
+h3 { color: var(--ink-soft); font-size: 14px; font-weight: 700; }
+
+/* -------------------------------------------------------------- card -- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 18px;
+  overflow-x: auto;
+  /* หมายเหตุ: overflow-x เดี่ยวๆ (ไม่ระบุ overflow-y) ทำให้ตามสเปก CSS เบราว์เซอร์คำนวณ overflow-y
+     เป็น "auto" ไปด้วยโดยอัตโนมัติ — บนเครื่องที่ตั้งค่าสกอร์บาร์แบบ "แสดงตลอด" (ไม่ใช่ overlay) จะเห็น
+     แถบสกอร์บาร์แนวตั้งค้างอยู่ข้างการ์ดตลอดแม้เนื้อหาจะไม่ล้นแนวตั้งเลยก็ตาม จึงต้องระบุ overflow-y: visible
+     ไว้ตรงๆ เพื่อตัดสกอร์บาร์แนวตั้งที่ไม่จำเป็นออก (ยังคง scroll แนวนอนไว้ให้ตารางกว้างๆ บนจอเล็กเหมือนเดิม) */
+  overflow-y: visible;
+}
+
+/* ------------------------------------------------------------- table -- */
+table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13.5px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-soft); }
+th {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr { transition: background 0.12s ease; }
+tbody tr:hover { background: var(--bg); }
+tr:last-child td { border-bottom: none; }
+
+/* -------------------------------------------------------- sortable-th -- */
+th.sortable-th { cursor: pointer; user-select: none; transition: color 0.12s ease; }
+th.sortable-th:hover { color: var(--ink-soft); }
+th.sortable-th .sort-indicator { margin-left: 4px; opacity: 0.35; font-size: 11px; }
+th.sortable-th[data-sort-dir] .sort-indicator { opacity: 0.9; color: var(--brand); }
+
+/* ------------------------------------------------------- pager-controls -- */
+.pager-controls {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin-top: 10px; font-size: 13px; color: var(--ink-soft, #666);
+}
+.pager-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pager-label { white-space: nowrap; }
+
+/* ------------------------------------------------------------- modal -- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(20, 24, 40, 0.55);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 6vh 16px; z-index: 200; overflow-y: auto;
+}
+.modal-box {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-md);
+  padding: 20px; width: 100%; max-width: 560px; max-height: 88vh;
+  display: flex; flex-direction: column;
+}
+.picker-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border-soft);
+  cursor: pointer; font-size: 14px;
+}
+.picker-row:hover { background: var(--bg); }
+.picker-row:last-child { border-bottom: none; }
+.picker-row .picker-name { font-weight: 600; color: var(--ink); }
+.picker-row .picker-meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.picker-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 14px; }
+
+/* ------------------------------------------------------------- badge -- */
+.badge {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.badge.New { background: var(--grey-bg); color: var(--grey-fg); }
+.badge.Diagnosing { background: var(--amber-bg); color: var(--amber-fg); }
+.badge.Waiting-for-Parts { background: var(--orange-bg); color: var(--orange-fg); }
+.badge.In-Repair { background: var(--blue-bg); color: var(--blue-fg); }
+.badge.Testing { background: var(--purple-bg); color: var(--purple-fg); }
+.badge.Resolved-Closed { background: var(--green-bg); color: var(--green-fg); }
+
+/* --------------------------------------------------------------- btn -- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: linear-gradient(100deg, var(--grad-mid), var(--grad-end));
+  color: #fff; border: none;
+  padding: 9px 18px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 14px; font-weight: 600; text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); opacity: 0.96; }
+.btn:active { transform: translateY(0); }
+.btn:focus-visible { outline: 2px solid var(--grad-mid); outline-offset: 2px; }
+.btn.small { padding: 5px 12px; font-size: 12px; border-radius: 7px; }
+.btn.danger { background: linear-gradient(100deg, #e5484d, #c0392b); }
+.btn.secondary { background: var(--surface); color: var(--ink-soft); border: 1px solid var(--border); box-shadow: none; }
+.btn.secondary:hover { background: var(--bg); color: var(--ink); }
+button:disabled, .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* ------------------------------------------------------------- forms -- */
+input, select, textarea {
+  width: 100%; padding: 9px 11px; margin: 4px 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 14px; font-family: inherit; color: var(--ink);
+  background: var(--surface);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--grad-mid);
+  box-shadow: 0 0 0 3px rgba(63, 127, 224, 0.15);
+}
+label { font-size: 12.5px; color: var(--ink-soft); font-weight: 700; display: block; }
+
+/* -------------------------------------------------------------- grid -- */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; }
+.stat {
+  text-align: center;
+  border-top: 3px solid var(--grad-mid);
+  padding-top: 16px;
+}
+.stat .num { font-size: 30px; font-weight: 800; color: var(--ink); letter-spacing: -0.5px; }
+.stat .label { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.stat .stat-icon { font-size: 22px; margin-bottom: 4px; }
+.stat.stat-danger { background: var(--red-bg); border-top-color: var(--red-fg); }
+.stat.stat-danger .num, .stat.stat-danger .label { color: var(--red-fg); }
+.stat.stat-warning { background: var(--amber-bg); border-top-color: var(--amber-fg); }
+.stat.stat-warning .num, .stat.stat-warning .label { color: var(--amber-fg); }
+.stat.clickable { cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.stat.clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+/* --------------------------------------------------------- gauge-card -- */
+/* การ์ดสถิติแบบวงแหวนเรืองแสง (radial gauge) สไตล์ HUD ไฮเทค — ใช้เฉพาะหน้า Dashboard (แอดมิน/ผู้จัดการ + ลูกค้า)
+   ผ่าน macro gauge() ใน _gauge_macros.html เท่านั้น หน้าอื่นที่ใช้ .card.stat ธรรมดายังคงหน้าตาเดิมไม่เปลี่ยน */
+.stat.gauge-card {
+  text-align: center;
+  border-top: none;
+  padding: 20px 12px 16px;
+  background: radial-gradient(130% 130% at 50% -10%, #1c2947 0%, #121a30 55%, #0a0e1c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow-sm);
+}
+.stat.gauge-card::before {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+.stat.gauge-card.clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 10px 30px rgba(5, 8, 20, 0.5);
+}
+.stat.gauge-card .label {
+  position: relative; z-index: 1;
+  color: rgba(226, 232, 245, 0.75);
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+.gauge {
+  position: relative;
+  width: 104px; height: 104px;
+  margin: 0 auto;
+  z-index: 1;
+}
+.gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.gauge-track { fill: none; stroke: rgba(255, 255, 255, 0.09); stroke-width: 10; }
+.gauge-fill {
+  fill: none; stroke-width: 10; stroke-linecap: round;
+  transition: stroke-dasharray 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 0 6px var(--accent, #38bdf8));
+}
+.gauge-fill-cyan    { stroke: #22d3ee; }
+.gauge-fill-green   { stroke: #34d399; }
+.gauge-fill-warning { stroke: #fbbf24; }
+.gauge-fill-danger  { stroke: #f87171; }
+.gauge-fill-purple  { stroke: #a78bfa; }
+.gauge-fill-slate   { stroke: #94a3b8; }
+/* --accent ตั้งไว้ที่ .gauge ตัวห่อ (ไม่ใช่ที่วง SVG) เพื่อให้ตัวเลข/ไอคอนตรงกลางเรืองแสงสีเดียวกับวงแหวนได้
+   แม้จะไม่ได้เป็นลูกของ <circle> โดยตรง — custom property นี้ไหลทะลุ (inherit) ผ่าน DOM ได้ตามปกติ */
+.gauge-cyan    { --accent: #22d3ee; }
+.gauge-green   { --accent: #34d399; }
+.gauge-warning { --accent: #fbbf24; }
+.gauge-danger  { --accent: #f87171; }
+.gauge-purple  { --accent: #a78bfa; }
+.gauge-slate   { --accent: #94a3b8; }
+.gauge-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.gauge-icon { font-size: 16px; margin-bottom: 2px; opacity: 0.9; }
+.gauge-num {
+  font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.5px;
+  text-shadow: 0 0 14px var(--accent, #38bdf8);
+}
+tr.selected-row td { background: var(--blue-bg); }
+tr.selected-row td:first-child { border-left: 3px solid var(--brand); }
+.tech-case-link {
+  color: var(--ink); font-weight: 600; text-decoration: none;
+  border-bottom: 1px dashed var(--grad-mid); padding-bottom: 1px;
+}
+.tech-case-link:hover { color: var(--grad-mid); }
+
+/* ------------------------------------------------------------ kanban -- */
+.kanban { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; }
+.kanban-col {
+  background: #eef1f8; border-radius: var(--radius); padding: 12px;
+  min-width: 250px; flex: 1; border-top: 4px solid var(--grey-fg);
+}
+.kanban-col:nth-child(1) { border-top-color: #64748b; }
+.kanban-col:nth-child(2) { border-top-color: var(--amber-fg); }
+.kanban-col:nth-child(3) { border-top-color: var(--orange-fg); }
+.kanban-col:nth-child(4) { border-top-color: var(--blue-fg); }
+.kanban-col:nth-child(5) { border-top-color: var(--purple-fg); }
+.kanban-col:nth-child(6) { border-top-color: var(--green-fg); }
+.kanban-col h3 { font-size: 13px; margin: 2px 0 10px; color: var(--ink); }
+.kcard {
+  background: var(--surface); border-radius: var(--radius-sm); padding: 12px;
+  margin-bottom: 10px; box-shadow: var(--shadow-sm); font-size: 13px;
+  border: 1px solid var(--border);
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.kcard:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.kcard b { display: block; margin-bottom: 4px; color: var(--ink); }
+
+/* --------------------------------------------------------- product-block -- */
+.product-block {
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;
+  text-align: center; cursor: pointer; background: var(--surface);
+  transition: box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+.product-block:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--grad-mid); }
+
+/* ------------------------------------------------------------- misc -- */
+.warning { color: var(--red-fg); font-weight: 700; }
+.ok { color: var(--green-fg); font-weight: 700; }
+.error-box {
+  background: var(--red-bg); color: var(--red-fg); padding: 12px 14px;
+  border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 14px; font-weight: 500;
+}
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+.tag {
+  background: var(--blue-bg); color: var(--blue-fg);
+  padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+}
+.notif-badge {
+  position: absolute; top: -6px; right: -6px; background: var(--red-fg); color: #fff;
+  font-size: 10px; font-weight: 800; line-height: 1; padding: 3px 5px; border-radius: 999px;
+  min-width: 16px; text-align: center; box-shadow: 0 0 0 2px var(--surface);
+}
+.dropzone {
+  display: block; border: 2px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 18px 14px; text-align: center; cursor: pointer; margin: 8px 0; transition: all .15s;
+  background: var(--bg);
+}
+.dropzone:hover, .dropzone.dragover {
+  border-color: var(--brand); background: var(--blue-bg);
+}
+.file-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--bg); margin-bottom: 6px;
+}
+.file-row-icon { font-size: 20px; flex-shrink: 0; }
+.file-row-info { flex: 1; min-width: 0; }
+.file-row-name { font-size: 13.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-row-remove {
+  background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px;
+  padding: 4px 8px; border-radius: 999px; flex-shrink: 0;
+}
+.file-row-remove:hover { background: var(--red-bg); color: var(--red-fg); }
+
+/* ---------------------------------------------------------- timeline -- */
+.timeline { list-style: none; padding: 0; }
+.timeline li {
+  padding: 8px 0 8px 24px; border-left: 3px solid var(--border); margin-left: 8px;
+  position: relative; color: var(--muted); font-size: 13.5px;
+}
+.timeline li.done { border-color: var(--green-fg); color: var(--ink-soft); }
+.timeline li.current { border-color: var(--brand); font-weight: 700; color: var(--ink); }
+.timeline li::before {
+  content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--border);
+  position: absolute; left: -8px; top: 10px; border: 2px solid var(--surface);
+}
+.timeline li.done::before { background: var(--green-fg); }
+.timeline li.current::before { background: var(--brand); box-shadow: 0 0 0 4px rgba(63,127,224,0.18); }
+
+/* --------------------------------------------------- ticket tracking hero -- */
+/* หน้าติดตามงานซ่อมของลูกค้า (customer_ticket_detail.html) — การ์ดหัวเรื่องไล่สีพร้อมป้ายสถานะ,
+   สเต็ปเปอร์แนวนอนแสดงความคืบหน้า, กล่องข้อมูลย่อย และเลย์เอาต์ 2 คอลัมน์ (ประวัติ + ติดต่อขอความช่วยเหลือ) */
+.ticket-hero {
+  background: linear-gradient(115deg, var(--grad-start) 0%, var(--grad-mid) 55%, var(--grad-end) 100%);
+  color: #fff; border-radius: var(--radius); padding: 22px 26px; margin-bottom: 18px;
+  box-shadow: var(--shadow-md); position: relative; overflow: hidden;
+}
+.ticket-hero-id { font-size: 13px; opacity: 0.85; font-weight: 600; }
+.ticket-hero-title { font-size: 24px; font-weight: 800; margin: 4px 0 10px; }
+.ticket-hero-badge {
+  display: inline-block; background: rgba(255,255,255,0.22); color: #fff; font-size: 13px; font-weight: 700;
+  padding: 5px 14px; border-radius: 999px; margin-bottom: 10px;
+}
+.ticket-hero-next { font-size: 13.5px; opacity: 0.92; margin: 0; }
+
+.ticket-stepper { display: flex; align-items: flex-start; margin: 4px 0 18px; }
+.ticket-stepper .step {
+  flex: 1; text-align: center; position: relative; font-size: 12.5px; color: var(--muted); font-weight: 600;
+}
+.ticket-stepper .step::before {
+  content: ""; position: absolute; top: 11px; left: -50%; width: 100%; height: 3px; background: var(--border); z-index: 0;
+}
+.ticket-stepper .step:first-child::before { display: none; }
+.ticket-stepper .step.done::before { background: var(--brand); }
+.step-dot {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--surface); border: 3px solid var(--border);
+  margin: 0 auto 6px; position: relative; z-index: 1;
+}
+.ticket-stepper .step.done .step-dot { background: var(--brand); border-color: var(--brand); }
+.ticket-stepper .step.current .step-dot {
+  background: var(--brand); border-color: var(--brand); box-shadow: 0 0 0 4px rgba(63,127,224,0.2);
+}
+.ticket-stepper .step.current { color: var(--ink); }
+
+.ticket-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.ticket-info-box { background: var(--bg); border-radius: var(--radius-sm); padding: 12px 14px; }
+.ticket-info-box .label { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.ticket-info-box .value { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+
+.ticket-columns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 720px) { .ticket-columns { grid-template-columns: 1fr; } }
+.history-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+.history-item:last-child { border-bottom: none; }
+.history-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); margin-top: 6px; flex-shrink: 0; }
+.history-item .history-title { font-weight: 700; font-size: 13.5px; color: var(--ink); }
+.history-item .history-sub { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+.history-item .history-time { font-size: 11.5px; color: var(--muted); white-space: nowrap; margin-left: auto; padding-left: 8px; }
+.help-card { background: var(--bg); border-radius: var(--radius-sm); padding: 16px; }
+.help-card h4 { margin: 0 0 6px; font-size: 14.5px; }
+.help-card p { font-size: 13px; color: var(--ink-soft); margin: 0 0 12px; }
+
+/* ------------------------------------------------------------- login -- */
+.login-box {
+  max-width: 400px; margin: 64px auto;
+  border-top: 4px solid transparent;
+  border-image: linear-gradient(100deg, var(--grad-start), var(--grad-end)) 1;
+  box-shadow: var(--shadow-md);
+}
+.login-box h1 { text-align: center; }
+
+/* ---------------------------------------------------------- media grid -- */
+.media-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.media-grid img {
+  width: 112px; height: 112px; object-fit: cover; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); display: block; transition: transform 0.15s ease;
+}
+.media-grid img:hover { transform: scale(1.04); }
+.media-grid video { max-width: 280px; border-radius: var(--radius-sm); }
+
+/* --------------------------------------------------- center/branch cards -- */
+.center-card {
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+.center-card:hover { box-shadow: var(--shadow-md); }
+
+/* -------------------------------------------------------------- guide -- */
+.guide-card {
+  display: block; text-decoration: none; color: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px;
+  background: var(--surface); box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+.guide-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--grad-mid); }
+.guide-card.locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+.guide-card .guide-card-icon { font-size: 28px; margin-bottom: 8px; }
+.guide-step {
+  display: flex; gap: 16px; padding: 20px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.guide-step:last-child { border-bottom: none; }
+.guide-step-num {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--blue-bg); color: var(--blue-fg); font-weight: 700; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.guide-step-body { flex: 1 1 auto; min-width: 0; }
+.guide-shot {
+  width: 100%; max-width: 720px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); box-shadow: var(--shadow-sm); display: block;
+}
+
+/* --------------------------------------------------- shelf visualization -- */
+.shelf-visual {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px; margin-bottom: 4px;
+}
+.shelf-box {
+  cursor: pointer; text-align: center; padding: 14px 10px 10px; background: var(--bg);
+  border: 1px solid var(--border); border-bottom: 4px solid var(--grad-mid);
+  border-radius: var(--radius-sm);
+  transition: box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.shelf-box:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+.shelf-box.active { background: var(--blue-bg); border-color: var(--grad-mid); }
+.shelf-box .shelf-icon { font-size: 22px; }
+.shelf-box .shelf-label { font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-top: 4px; word-break: break-word; }
+.shelf-box .shelf-count { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+.shelf-box.shelf-all { border-bottom-color: var(--border); }
+.shelf-box.shelf-all.active { border-bottom-color: var(--grad-mid); }
+
+/* ------------------------------------------------------------ mobile -- */
+@media (max-width: 720px) {
+  .topnav { padding: 10px 14px; }
+  .topnav .brand { font-size: 15px; margin-right: 10px; }
+  .container { margin: 16px auto; padding: 0 12px 40px; }
+  h1 { font-size: 20px; }
+  .card { padding: 14px 16px; }
+  .login-box { margin: 32px auto; }
+}

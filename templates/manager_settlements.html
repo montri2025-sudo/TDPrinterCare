@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}รายงานยอดขายฝากขาย{% endblock %}
+{% block content %}
+<h1>💰 รายงานยอดขาย/ชำระเงินสินค้าฝากขาย</h1>
+<p class="hint" style="margin-top:-6px;">สรุปยอดขายสินค้าฝากขาย (เครื่องพิมพ์/วัสดุที่ HQ ส่งมาให้ขายแทน) ประจำเดือน — ส่งรายงานให้ HQ ตรวจสอบกระทบยอดและออกใบแจ้งหนี้ ก่อนโอนเงินให้ HQ ตามจริง</p>
+
+<div class="card">
+  <h2>เดือนปัจจุบัน ({{ period }})</h2>
+  <p class="stat-icon" style="font-size:30px; font-weight:800; margin:6px 0;">{{ "%.0f"|format(current_total) }} บาท</p>
+  <p class="hint" style="margin-top:-6px;">ยอดขายสินค้าฝากขายสะสมของเดือนนี้ (คำนวณอัตโนมัติจากรายการขาย)</p>
+
+  {% if current and current.status != 'draft' %}
+  <p><strong>สถานะ:</strong> {{ settlement_status_labels.get(current.status, current.status) }}</p>
+  {% if current.invoice_number %}<p class="hint">เลขที่ใบแจ้งหนี้: {{ current.invoice_number }}</p>{% endif %}
+  <p class="hint">ยอดที่ส่งรายงานไว้: {{ "%.0f"|format(current.total_consignment_sales) }} บาท (ส่งเมื่อ {{ current.submitted_at }})</p>
+  {% else %}
+  <form method="post" action="/manager/settlements/submit">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>หมายเหตุ (ไม่บังคับ)</label>
+    <input type="text" name="notes" placeholder="เช่น มีสินค้าคืน 1 ชิ้นเดือนนี้">
+    <button class="btn" type="submit">📨 ส่งรายงานยอดขายเดือนนี้ให้ HQ</button>
+  </form>
+  <p class="hint" style="margin-top:8px;">ยอดจะถูกล็อกไว้ ณ เวลาที่กดส่ง — ถ้ามีการขายเพิ่มหลังจากนี้จะไปรวมในรายงานเดือนถัดไปแทน</p>
+  {% endif %}
+</div>
+
+<h2 style="margin-top:24px;">📜 ประวัติรายงานเดือนก่อนหน้า</h2>
+<div class="card">
+  {% if not history %}
+  <p class="hint">ยังไม่มีประวัติรายงานเดือนก่อนหน้า</p>
+  {% else %}
+  <table class="sortable">
+    <tr><th>เดือน</th><th>ยอดขายฝากขาย (บาท)</th><th>สถานะ</th><th>เลขที่ใบแจ้งหนี้</th><th>ส่งรายงานเมื่อ</th></tr>
+    {% for s in history %}
+    <tr>
+      <td>{{ s.period_month }}</td>
+      <td>{{ "%.0f"|format(s.total_consignment_sales) }}</td>
+      <td>{{ settlement_status_labels.get(s.status, s.status) }}</td>
+      <td>{{ s.invoice_number or '—' }}</td>
+      <td>{{ s.submitted_at or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

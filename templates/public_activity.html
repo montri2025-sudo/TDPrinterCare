@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.title }} — TD ServicePro{% endblock %}
+{% block content %}
+<h1>🔗 {{ activity.title }}</h1>
+<p class="hint" style="margin-top:-6px;">
+  {% if activity.event_date %}🗓️ {{ activity.event_date }}{% endif %}
+  {% if activity.download_deadline %} · ปิดดาวน์โหลด {{ activity.download_deadline }}{% endif %}
+</p>
+<p class="hint" style="margin-top:-6px;">🌐 หน้านี้เป็นลิงก์สาธารณะ ไม่ต้องเข้าสู่ระบบก็ดู/ดาวน์โหลดไฟล์ได้</p>
+
+{% if marketing_files %}
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+    <h2 style="margin:0;">📣 ไฟล์ Marketing</h2>
+    <a href="/sharespace-zip/{{ activity.activity_id }}/marketing" class="btn small">⬇️ ดาวน์โหลดทั้งหมด ({{ marketing_files|length }} ไฟล์)</a>
+  </div>
+  {% if activity.marketing_description %}<p style="margin:10px 0 6px;">{{ activity.marketing_description }}</p>{% endif %}
+  <div style="margin-top:8px;">
+    {% for f in marketing_files %}
+    <div class="file-row">
+      <span class="file-row-icon">{{ f.filename|file_icon }}</span>
+      <div class="file-row-info">
+        <div class="file-row-name">{{ f.filename }}</div>
+        <div class="hint">{{ f.size_bytes|filesizeformat if f.size_bytes else '-' }}</div>
+      </div>
+      <a href="/sharespace-file/{{ f.file_id }}" class="btn small secondary">ดาวน์โหลด</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if technical_files %}
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+    <h2 style="margin:0;">🔧 ไฟล์ Technical</h2>
+    <a href="/sharespace-zip/{{ activity.activity_id }}/technical" class="btn small">⬇️ ดาวน์โหลดทั้งหมด ({{ technical_files|length }} ไฟล์)</a>
+  </div>
+  {% if activity.technical_description %}<p style="margin:10px 0 6px;">{{ activity.technical_description }}</p>{% endif %}
+  <div style="margin-top:8px;">
+    {% for f in technical_files %}
+    <div class="file-row">
+      <span class="file-row-icon">{{ f.filename|file_icon }}</span>
+      <div class="file-row-info">
+        <div class="file-row-name">{{ f.filename }}</div>
+        <div class="hint">{{ f.size_bytes|filesizeformat if f.size_bytes else '-' }}</div>
+      </div>
+      <a href="/sharespace-file/{{ f.file_id }}" class="btn small secondary">ดาวน์โหลด</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if not marketing_files and not technical_files %}
+<div class="card">
+  <p class="hint">ยังไม่มีไฟล์แนบในกิจกรรมนี้</p>
+</div>
+{% endif %}
+{% endblock %}

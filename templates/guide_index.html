@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}คู่มือใช้งาน — TD ServicePro{% endblock %}
+{% block content %}
+<h1>📘 คู่มือใช้งาน</h1>
+<p class="hint">เลือกส่วนงานของคุณเพื่อดูขั้นตอนการใช้งานพร้อมภาพหน้าจอประกอบ — แต่ละส่วนงานเห็นเฉพาะคู่มือที่เกี่ยวข้องกับสิทธิ์การใช้งานของตัวเอง</p>
+<div class="grid">
+  {% for s in sections %}
+  {% if s.allowed %}
+  <a class="guide-card" href="/guide/{{ s.slug }}">
+    <div class="guide-card-icon">{{ s.icon }}</div>
+    <h3 style="margin:0 0 4px 0; color:var(--ink);">{{ s.title }}</h3>
+    <p class="hint" style="margin-top:0;">{{ s.subtitle }}</p>
+  </a>
+  {% else %}
+  <div class="guide-card locked">
+    <div class="guide-card-icon">🔒</div>
+    <h3 style="margin:0 0 4px 0;">{{ s.title }}</h3>
+    <p class="hint" style="margin-top:0;">{{ s.subtitle }}</p>
+    <p class="hint" style="margin-top:6px;">— ต้อง login ด้วยสิทธิ์ที่เกี่ยวข้องจึงจะดูได้ —</p>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

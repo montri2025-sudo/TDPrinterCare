@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}ทรัพยากรโปรโมท{% endblock %}
+{% block content %}
+<h1>📢 ทรัพยากรโปรโมท</h1>
+<p class="hint" style="margin-top:-6px;">อัปโหลด/แนบโบรชัวร์ รูปภาพ เอกสาร PDF หรือลิงก์วิดีโอ ให้ศูนย์บริการ (ผู้จัดการ/เซล) นำไปใช้โปรโมทหน้าร้าน/โซเชียลได้ที่หน้า "ทรัพยากรโปรโมท" ของตัวเอง</p>
+{% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>+ เพิ่มทรัพยากรใหม่</h2>
+  <form method="post" action="/admin/resources/new" enctype="multipart/form-data" id="resourceNewForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <div><label>ชื่อรายการ</label><input type="text" name="title" placeholder="เช่น โบรชัวร์ Anycubic S1 Max" required></div>
+      <div>
+        <label>ประเภท</label>
+        <select name="resource_type" id="newResourceType" onchange="toggleNewResourceFields()">
+          {% for t in resource_types %}
+          <option value="{{ t }}">{{ resource_type_labels.get(t, t) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="grid-column: 1 / -1;"><label>คำอธิบาย (ไม่บังคับ)</label><input type="text" name="description" placeholder="เช่น ใช้โพสต์โปรโมทหน้าร้าน/เพจ Facebook"></div>
+      <div id="newResourceFileField"><label>ไฟล์ (รูปภาพหรือ PDF)</label><input type="file" name="file" accept="image/*,application/pdf"></div>
+      <div id="newResourceUrlField" style="display:none;"><label>ลิงก์วิดีโอ (YouTube/Facebook/Google Drive ฯลฯ)</label><input type="text" name="video_url" placeholder="https://..."></div>
+    </div>
+    <p class="hint">ไฟล์ (โบรชัวร์/เอกสาร PDF) ขนาดไม่เกิน {{ 20 }} MB — วิดีโอไม่รองรับอัปโหลดไฟล์ตรง ให้แปะลิงก์จากภายนอกแทน</p>
+    <button class="btn" type="submit">เพิ่มทรัพยากร</button>
+  </form>
+</div>
+
+{% for g in groups %}
+<h2 style="margin-top:24px;">{{ g.label }}</h2>
+<div class="card">
+  {% if not g.resources %}
+  <p class="hint">ยังไม่มีรายการในหมวดนี้</p>
+  {% else %}
+  <table class="sortable">
+    <tr><th>ชื่อรายการ</th><th>คำอธิบาย</th><th>ไฟล์/ลิงก์</th><th>อัปโหลดโดย</th><th>วันที่</th><th data-no-sort>จัดการ</th></tr>
+    {% for r in g.resources %}
+    <tr data-pair-id="resource-edit-row-{{ r.resource_id }}">
+      <td>{{ r.title }}</td>
+      <td>{{ r.description or '-' }}</td>
+      <td>
+        {% if r.resource_type == 'Video' %}
+        <a href="{{ r.video_url }}" target="_blank" rel="noopener">เปิดลิงก์วิดีโอ ↗</a>
+        {% else %}
+        <a href="/resource-file/{{ r.file_filename }}" target="_blank">เปิด/ดาวน์โหลดไฟล์</a>
+        {% endif %}
+      </td>
+      <td>{{ r.uploaded_by_name }}</td>
+      <td>{{ r.created_at }}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" type="button" onclick="toggleResourceEdit({{ r.resource_id }})">แก้ไข</button>
+        <form method="post" action="/admin/resources/{{ r.resource_id }}/delete" style="display:inline;"
+              onsubmit="return confirm('ลบ {{ r.title }}?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn small danger" type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="resource-edit-row-{{ r.resource_id }}" style="display:none; background:#f7f9fc;">
+      <td colspan="6">
+        <form method="post" action="/admin/resources/{{ r.resource_id }}/edit" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div><label>ชื่อรายการ</label><input type="text" name="title" value="{{ r.title }}" required style="min-width:200px;"></div>
+          <div style="flex:1; min-width:200px;"><label>คำอธิบาย</label><input type="text" name="description" value="{{ r.description or '' }}"></div>
+          {% if r.resource_type == 'Video' %}
+          <div style="min-width:240px;"><label>ลิงก์วิดีโอ</label><input type="text" name="video_url" value="{{ r.video_url }}"></div>
+          {% else %}
+          <div><label>แทนที่ไฟล์ (ไม่บังคับ)</label><input type="file" name="file" accept="image/*,application/pdf"></div>
+          {% endif %}
+          <button class="btn small" type="submit">บันทึกการแก้ไข</button>
+          <button class="btn small secondary" type="button" onclick="toggleResourceEdit({{ r.resource_id }})">ยกเลิก</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endfor %}
+
+<script>
+  function toggleNewResourceFields() {
+    var isVideo = document.getElementById('newResourceType').value === 'Video';
+    document.getElementById('newResourceFileField').style.display = isVideo ? 'none' : 'block';
+    document.getElementById('newResourceUrlField').style.display = isVideo ? 'block' : 'none';
+  }
+  function toggleResourceEdit(resourceId) {
+    var row = document.getElementById('resource-edit-row-' + resourceId);
+    row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}งานของฉัน{% endblock %}
+{% block content %}
+<h1>🔧 งานของฉัน</h1>
+<p><a href="/tech/report" class="btn small secondary">📊 รายงานการทำงานของฉัน</a></p>
+<div class="card">
+  <table class="sortable">
+    <tr><th>#</th><th>ลูกค้า</th><th>เครื่อง</th><th>ปัญหา</th><th>สาขา</th><th>สถานะ</th><th data-no-sort></th></tr>
+    {% for t in tickets %}
+    <tr>
+      <td>{{ t.ticket_id }}</td>
+      <td>{{ t.customer_name }}</td>
+      <td>{{ t.model }}</td>
+      <td>{{ t.issue_category }}</td>
+      <td>{{ t.center_name or '-' }}</td>
+      <td><span class="badge {{ t.status|replace(' ','-')|replace('/','-') }}">{{ status_icons.get(t.status, '') }} {{ status_labels.get(t.status, t.status) }}</span></td>
+      <td><a href="/tech/ticket/{{ t.ticket_id }}" class="btn small">เปิดงาน</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7">ยังไม่มีงานที่ได้รับมอบหมาย</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

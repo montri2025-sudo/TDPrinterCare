@@ -1,0 +1,11 @@
+{% macro guide_step(num, title, desc, img, slug) %}
+<div class="guide-step">
+  <div class="guide-step-num">{{ num }}</div>
+  <div class="guide-step-body">
+    <h3 style="margin:0 0 4px 0;">{{ title }}</h3>
+    <p class="hint" style="margin-top:0; margin-bottom:10px;">{{ desc }}</p>
+    <img class="guide-shot" src="/static/guide/{{ slug }}/{{ img }}" alt="{{ title }}"
+         onerror="this.onerror=null; this.src='/static/guide/placeholder.svg';">
+  </div>
+</div>
+{% endmacro %}

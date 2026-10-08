@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% import "_gauge_macros.html" as gauges %}
+{% block title %}Dashboard ของฉัน{% endblock %}
+{% block extra_head %}
+{% if my_location or centers_with_geo %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>📊 Dashboard ของฉัน</h1>
+<p class="hint" style="margin-top:-6px;">👆 คลิกที่ตัวเลขบนการ์ดเพื่อดูรายละเอียด</p>
+
+<h2>🖨️ เครื่องพิมพ์ของฉัน แยกตามประเภท</h2>
+<div class="grid">
+  {% set type_icons = {"FDM": "🖨️", "Resin": "🧪", "Wash & Cure": "🚿", "Other": "📦"} %}
+  {% set device_total = type_counts.values()|sum %}
+  {% set device_total_max = device_total if device_total > 0 else 1 %}
+  {% for dt in ["FDM", "Resin", "Wash & Cure", "Other"] %}
+  <div class="card stat gauge-card clickable" onclick='openCustDeviceTypes({{ dt|tojson }}, {{ (type_icons.get(dt, "") ~ " " ~ device_type_labels.get(dt, dt))|tojson }})'>
+    {{ gauges.gauge(type_counts.get(dt, 0), type_icons.get(dt, ''), 'cyan', device_total_max) }}
+    <div class="label">{{ device_type_labels.get(dt, dt) }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<h2 style="margin-top:24px;">🎫 ตั๋วซ่อมของฉัน</h2>
+<div class="grid">
+  {% for s in statuses %}
+  {% set c = counts.get(s, 0) %}
+  {% if s == 'Waiting for Parts' %}
+    {% set gcolor = 'warning' %}
+  {% elif s == 'Resolved/Closed' %}
+    {% set gcolor = 'green' %}
+  {% else %}
+    {% set gcolor = 'cyan' %}
+  {% endif %}
+  <div class="card stat gauge-card clickable"
+       onclick='openCustCases({{ s|tojson }}, {{ (status_icons.get(s, "") ~ " " ~ status_labels.get(s, s))|tojson }})'>
+    {{ gauges.gauge(c, status_icons.get(s, ''), gcolor, 10) }}
+    <div class="label">{{ status_labels.get(s, s) }}</div>
+  </div>
+  {% endfor %}
+  {% set cust_total_max = total if total > 0 else 1 %}
+  <div class="card stat gauge-card clickable" onclick='openCustCases("total", {{ "🗂️ ตั๋วทั้งหมด"|tojson }})'>
+    {{ gauges.gauge(total, "🗂️", "purple", cust_total_max) }}
+    <div class="label">ตั๋วทั้งหมด</div>
+  </div>
+</div>
+<p style="margin-top:10px;"><a href="/customer/new">➕ แจ้งซ่อมใหม่</a></p>
+
+<h2 style="margin-top:24px;">🖨️ เครื่องพิมพ์ของฉัน</h2>
+<div class="grid">
+  {% set device_summary_total = summary.get('ready', 0) + summary.get('maintenance_due', 0) +
+     summary.get('in_repair', 0) + summary.get('decommissioned', 0) + summary.get('sold', 0) %}
+  {% set ds_max = device_summary_total if device_summary_total > 0 else 1 %}
+  <div class="card stat gauge-card clickable" onclick='openCustDevices("ready", {{ "✅ พร้อมใช้งาน"|tojson }})'>
+    {{ gauges.gauge(summary.get('ready', 0), "✅", "green", ds_max) }}
+    <div class="label">พร้อมใช้งาน</div>
+  </div>
+  <div class="card stat gauge-card clickable"
+       onclick='openCustDevices("maintenance_due", {{ "🛠️ ถึงรอบบำรุงรักษา"|tojson }})'>
+    {{ gauges.gauge(summary.get('maintenance_due', 0), "🛠️", ('warning' if summary.get('maintenance_due', 0) > 0 else 'cyan'), ds_max) }}
+    <div class="label">ถึงรอบบำรุงรักษา</div>
+  </div>
+  <div class="card stat gauge-card clickable"
+       onclick='openCustDevices("in_repair", {{ "🔩 กำลังซ่อม"|tojson }})'>
+    {{ gauges.gauge(summary.get('in_repair', 0), "🔩", ('danger' if summary.get('in_repair', 0) > 0 else 'cyan'), ds_max) }}
+    <div class="label">กำลังซ่อม</div>
+  </div>
+  <div class="card stat gauge-card clickable" onclick='openCustDevices("decommissioned", {{ "⏹️ เลิกใช้แล้ว"|tojson }})'>
+    {{ gauges.gauge(summary.get('decommissioned', 0), "⏹️", "slate", ds_max) }}
+    <div class="label">เลิกใช้แล้ว</div>
+  </div>
+  <div class="card stat gauge-card clickable" onclick='openCustDevices("sold", {{ "🔁 ขายต่อแล้ว"|tojson }})'>
+    {{ gauges.gauge(summary.get('sold', 0), "🔁", "slate", ds_max) }}
+    <div class="label">ขายต่อแล้ว</div>
+  </div>
+</div>
+<p style="margin-top:10px;"><a href="/customer/maintenance">🔧 ดูรายละเอียด/บันทึกบำรุงรักษาเครื่อง →</a></p>
+
+<h2 style="margin-top:24px;">📍 แผนที่ตำแหน่งของฉันและศูนย์บริการ</h2>
+<div class="card">
+  {% if my_location or centers_with_geo %}
+  <div id="my-location-map" style="height:400px; border-radius:8px;"></div>
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:13px;">
+    <span><span style="width:14px; height:14px; border-radius:50%; background:#2c3e50; display:inline-block; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4); vertical-align:middle;"></span> ตำแหน่งของฉัน</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#8e44ad; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> ศูนย์บริการ (FDM + Resin)</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#2e5395; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> ศูนย์บริการ (FDM เท่านั้น)</span>
+    <span><span style="width:12px; height:12px; border-radius:50%; background:#e67e22; display:inline-block; border:1px solid rgba(0,0,0,.15); vertical-align:middle;"></span> ศูนย์บริการ (Resin เท่านั้น)</span>
+  </div>
+  {% if not my_location %}
+  <p class="hint" style="margin-top:10px;">ยังไม่พบตำแหน่งของคุณ — ไปที่หน้า <a href="/customer/devices/new">เพิ่มเครื่องพิมพ์ของฉัน</a> แล้วอนุญาตให้เว็บไซต์เข้าถึงตำแหน่งเมื่อเบราว์เซอร์ถามอีกครั้ง</p>
+  {% endif %}
+  {% else %}
+  <p class="hint">ยังไม่พบตำแหน่งของคุณและศูนย์บริการบนแผนที่ — ไปที่หน้า <a href="/customer/devices/new">เพิ่มเครื่องพิมพ์ของฉัน</a> แล้วอนุญาตให้เว็บไซต์เข้าถึงตำแหน่งเมื่อเบราว์เซอร์ถาม</p>
+  {% endif %}
+</div>
+
+<div id="custCasesOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeCustCases();">
+  <div class="modal-box" style="max-width:600px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;" id="ccTitle"></h3>
+      <button type="button" class="btn small secondary" onclick="closeCustCases()">ปิด ✕</button>
+    </div>
+    <div id="ccBody" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="custDevicesOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeCustDevices();">
+  <div class="modal-box" style="max-width:640px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;" id="cdTitle"></h3>
+      <button type="button" class="btn small secondary" onclick="closeCustDevices()">ปิด ✕</button>
+    </div>
+    <div id="cdBody" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="custDeviceTypesOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeCustDeviceTypes();">
+  <div class="modal-box" style="max-width:640px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;" id="ctTitle"></h3>
+      <button type="button" class="btn small secondary" onclick="closeCustDeviceTypes()">ปิด ✕</button>
+    </div>
+    <div id="ctBody" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<script>
+  var CUST_CASES = {{ customer_cases_for_js|tojson }};
+  var CUST_STATUS_ICONS = {{ status_icons|tojson }};
+  var CUST_DEVICES = {{ customer_devices_for_js|tojson }};
+  var CUST_DEVICES_BY_TYPE = {{ customer_devices_by_type_for_js|tojson }};
+
+  function openCustCases(kind, title) {
+    var data = CUST_CASES[kind] || [];
+    document.getElementById('ccTitle').textContent = title + ' (' + data.length + ' รายการ)';
+    var body = document.getElementById('ccBody');
+    if (!data.length) {
+      body.innerHTML = '<p class="hint">ไม่มีรายการในสถานะนี้</p>';
+    } else {
+      body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
+        data.map(function (r) {
+          return '<tr><td><a href="/customer/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
+            r.model + '</td><td>' + (CUST_STATUS_ICONS[r.status] || '') + ' ' + r.status_label + '</td><td>' + r.date + '</td></tr>';
+        }).join('') + '</table>';
+    }
+    document.getElementById('custCasesOverlay').style.display = 'flex';
+  }
+  function closeCustCases() {
+    document.getElementById('custCasesOverlay').style.display = 'none';
+  }
+
+  function openCustDevices(kind, title) {
+    var data = CUST_DEVICES[kind] || [];
+    document.getElementById('cdTitle').textContent = title + ' (' + data.length + ' เครื่อง)';
+    var body = document.getElementById('cdBody');
+    if (!data.length) {
+      body.innerHTML = '<p class="hint">ไม่มีเครื่องในสถานะนี้</p>';
+    } else {
+      body.innerHTML = '<table class="sortable"><tr><th>SN</th><th>รุ่น</th><th>ชั่วโมงใช้งานสะสม</th><th>รายละเอียด</th><th data-no-sort></th></tr>' +
+        data.map(function (d) {
+          var detail = '-';
+          if (kind === 'maintenance_due' && d.due_tasks && d.due_tasks.length) {
+            detail = d.due_tasks.join('<br>');
+          } else if (kind === 'in_repair' && d.open_ticket_id) {
+            detail = '<a href="/customer/ticket/' + d.open_ticket_id + '">ตั๋ว #' + d.open_ticket_id + '</a>';
+          }
+          return '<tr><td>' + d.device_sn + '</td><td>' + d.model + '</td><td>' + Math.round(d.total_usage_hours) + ' ชม.</td><td>' +
+            detail + '</td><td><a href="/device/' + encodeURIComponent(d.device_sn) + '/history" class="btn small secondary">ประวัติ</a></td></tr>';
+        }).join('') + '</table>';
+    }
+    document.getElementById('custDevicesOverlay').style.display = 'flex';
+  }
+  function closeCustDevices() {
+    document.getElementById('custDevicesOverlay').style.display = 'none';
+  }
+
+  function openCustDeviceTypes(kind, title) {
+    var data = CUST_DEVICES_BY_TYPE[kind] || [];
+    document.getElementById('ctTitle').textContent = title + ' (' + data.length + ' เครื่อง)';
+    var body = document.getElementById('ctBody');
+    if (!data.length) {
+      body.innerHTML = '<p class="hint">ยังไม่มีเครื่องพิมพ์ประเภทนี้ในบัญชีของคุณ</p>';
+    } else {
+      body.innerHTML = '<table class="sortable"><tr><th>SN</th><th>รุ่น</th><th>ชั่วโมงใช้งานสะสม</th><th>สถานะ</th><th data-no-sort></th></tr>' +
+        data.map(function (d) {
+          return '<tr><td>' + d.device_sn + '</td><td>' + d.model + '</td><td>' + Math.round(d.total_usage_hours) + ' ชม.</td><td>' +
+            d.status_label + '</td><td><a href="/device/' + encodeURIComponent(d.device_sn) + '/history" class="btn small secondary">ประวัติ</a></td></tr>';
+        }).join('') + '</table>';
+    }
+    document.getElementById('custDeviceTypesOverlay').style.display = 'flex';
+  }
+  function closeCustDeviceTypes() {
+    document.getElementById('custDeviceTypesOverlay').style.display = 'none';
+  }
+</script>
+
+{% if my_location or centers_with_geo %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  var myMap = L.map('my-location-map');
+  var myMapBounds = [];
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(myMap);
+  {% if my_location %}
+  (function () {
+    var icon = L.divIcon({
+      className: '',
+      html: '<div style="width:22px; height:22px; border-radius:50%; background:#2c3e50; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4);"></div>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    var marker = L.marker([{{ my_location.latitude }}, {{ my_location.longitude }}], { icon: icon }).addTo(myMap);
+    marker.bindPopup({{ ('📍 ตำแหน่งของฉัน<br>' ~ my_location.name)|tojson }});
+    myMapBounds.push([{{ my_location.latitude }}, {{ my_location.longitude }}]);
+  })();
+  {% endif %}
+  {% for c in centers_with_geo %}
+  (function () {
+    var marker = L.circleMarker([{{ c.latitude }}, {{ c.longitude }}], {
+      radius: 10, color: {{ ('#f1c40f' if c.sells_products else '#fff')|tojson }}, weight: {{ 3 if c.sells_products else 2 }},
+      fillColor: {{ c.marker_color|tojson }}, fillOpacity: 0.9
+    }).addTo(myMap);
+    marker.bindPopup({{ (c.name ~ '<br>' ~ (c.address or '') ~ (('<br>☎ ' ~ c.phone) if c.phone else '') ~ '<br><b>รับซ่อม: ' ~ c.type_label ~ '</b>')|tojson }});
+    myMapBounds.push([{{ c.latitude }}, {{ c.longitude }}]);
+  })();
+  {% endfor %}
+  if (myMapBounds.length === 1) { myMap.setView(myMapBounds[0], 14); }
+  else if (myMapBounds.length > 1) { myMap.fitBounds(myMapBounds, { padding: [30, 30] }); }
+  else { myMap.setView([13.7563, 100.5018], 6); }
+</script>
+{% endif %}
+{% endblock %}
