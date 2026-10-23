@@ -4,29 +4,30 @@
 <meta charset="UTF-8">
 <title>ใบเสนอราคา — คำสั่งซื้อ #{{ order.order_id }}</title>
 <style>
+  /* รูปแบบเดียวกับใบแจ้งหนี้ (invoice_print.html) */
   body { font-family: "Tahoma", "Segoe UI", sans-serif; color: #222; max-width: 800px; margin: 40px auto; padding: 0 20px; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1f3864; padding-bottom: 16px; margin-bottom: 24px; }
-  .header h1 { color: #1f3864; margin: 0; font-size: 26px; }
+  .header h1 { color: #1f3864; margin: 0; font-size: 22px; }
+  .header p { margin: 2px 0; font-size: 12px; color: #666; }
   .doc-title { text-align: right; }
   .doc-title h2 { margin: 0; color: #2e5395; }
   .doc-title p { margin: 2px 0; font-size: 13px; }
-  .parties { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
-  .party-box { flex: 1; }
-  .party-box h3 { margin: 0 0 6px 0; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
-  .party-box p { margin: 2px 0; font-size: 14px; }
-  .party-box .party-name { font-size: 16px; font-weight: bold; }
   table { width: 100%; border-collapse: collapse; margin: 16px 0; }
   th, td { border: 1px solid #ccc; padding: 8px 10px; font-size: 14px; text-align: left; }
   th { background: #f0f0f0; }
   td.num, th.num { text-align: right; }
-  .summary-row td { font-weight: bold; }
-  .summary-row.grand td { font-size: 16px; }
+  .total-row td { font-weight: bold; font-size: 16px; }
+  .meta p { margin: 3px 0; font-size: 14px; }
   .no-print { margin-bottom: 24px; }
   .btn { background: #2e5395; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-  .sign-section { display: flex; justify-content: space-between; gap: 40px; margin-top: 56px; }
-  .sign-box { flex: 1; text-align: center; }
-  .sign-line { border-top: 1px solid #888; margin-top: 48px; padding-top: 6px; font-size: 13px; }
-  .footnote { font-size: 12px; color: #888; margin-top: 32px; }
+  .footnote { font-size: 12px; color: #888; margin-top: 40px; }
+  .seller-box { font-size: 13px; color: #444; line-height: 1.6; margin: 0 0 16px 0; }
+  .bottom { display: flex; justify-content: space-between; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+  .pay-box, .contact-box { font-size: 13px; margin-bottom: 16px; }
+  .pay-box h4, .contact-box h4 { margin: 0 0 6px 0; font-size: 14px; color: #1f3864; }
+  .pay-box p, .contact-box p { margin: 2px 0; line-height: 1.5; }
+  .sign-box { text-align: center; min-width: 220px; }
+  .sign-line { border-top: 1px solid #888; margin-top: 56px; padding-top: 6px; font-size: 13px; }
   @media print { .no-print { display: none; } body { margin: 0; } }
 </style>
 </head>
@@ -38,43 +39,35 @@
 
   <div class="header">
     <div style="display:flex; align-items:center; gap:10px;">
-      {% if hq and hq.logo_filename %}
-      <img src="/center-logo/{{ hq.center_id }}/{{ hq.logo_filename }}" alt="{{ hq.name }}" style="height:48px; width:auto; object-fit:contain;">
-      {% else %}
       <img src="/static/logo.svg" alt="TD ServicePro" style="height:44px; width:auto;">
-      {% endif %}
       <div>
-        <h1>ใบเสนอราคา</h1>
+        <h1>TD ServicePro</h1>
+        <p>ศูนย์บริการซ่อมเครื่องพิมพ์ 3D</p>
       </div>
     </div>
     <div class="doc-title">
-      <h2>คำสั่งซื้อเลขที่ #{{ order.order_id }}</h2>
+      <h2>ใบเสนอราคา</h2>
+      <p>คำสั่งซื้อเลขที่ #{{ order.order_id }}</p>
       <p>วันที่ {{ order.created_at }}</p>
     </div>
   </div>
 
-  <div class="parties">
-    <div class="party-box">
-      <h3>ผู้เสนอราคา</h3>
-      <p class="party-name">{{ hq.name if hq else '-' }}</p>
-      <p>{{ hq.address if hq and hq.address else '-' }}</p>
-      {% if hq and hq.tax_id %}<p>เลขประจำตัวผู้เสียภาษี {{ hq.tax_id }}</p>{% endif %}
-      {% if hq and hq.phone %}<p>โทร {{ hq.phone }}</p>{% endif %}
-    </div>
-    <div class="party-box">
-      <h3>เสนอราคาให้</h3>
-      <p class="party-name">{{ order.center_name }}</p>
-      <p>{{ order.center_address or '-' }}</p>
-      {% if order.center_tax_id %}<p>เลขประจำตัวผู้เสียภาษี {{ order.center_tax_id }}</p>{% endif %}
-      {% if order.center_phone %}<p>โทร {{ order.center_phone }}</p>{% endif %}
-    </div>
+  <div class="seller-box">
+    <b>ห้างหุ้นส่วนจำกัด ดีนะจ๊ะ (สำนักงานใหญ่)</b><br>
+    เลขประจำตัวผู้เสียภาษี 0103562015592<br>
+    197 ถนน นวมินทร์ 86 แยก 2 แขวงรามอินทรา เขตคันนายาว กรุงเทพ 10230
+  </div>
+
+  <div class="meta">
+    <p><b>เสนอราคาให้:</b> {{ order.center_name }}</p>
+    <p><b>เลขประจำตัวผู้เสียภาษี:</b> {{ order.center_tax_id or '-' }}</p>
+    <p><b>เบอร์โทร:</b> {{ order.center_phone or '-' }}</p>
+    <p><b>ที่อยู่:</b> {{ order.center_address or '-' }}</p>
+    <p><b>ผู้สั่งซื้อ:</b> {{ order.requested_by_name or '-' }}</p>
   </div>
 
   <table>
-    <tr>
-      <th style="width:40px;">ลำดับ</th><th>รายละเอียด</th><th class="num" style="width:80px;">จำนวน</th>
-      <th class="num" style="width:110px;">ราคาต่อหน่วย</th><th class="num" style="width:120px;">รวมเป็นเงิน</th>
-    </tr>
+    <tr><th style="width:40px;">ลำดับ</th><th>รายการ</th><th class="num" style="width:70px;">จำนวน</th><th class="num" style="width:120px;">ราคา/หน่วย (บาท)</th><th class="num" style="width:120px;">รวม (บาท)</th></tr>
     {% for it in items %}
     <tr>
       <td>{{ loop.index }}</td>
@@ -84,30 +77,52 @@
       <td class="num">{{ "%.2f"|format(it.quantity_requested * it.unit_price) }}</td>
     </tr>
     {% endfor %}
-    <tr class="summary-row">
-      <td colspan="4" style="text-align:right;">รวมเป็นเงิน</td>
-      <td class="num">{{ "%.2f"|format(subtotal) }}</td>
-    </tr>
     {% if include_vat %}
-    <tr class="summary-row">
+    <tr class="total-row">
+      <td colspan="4" style="text-align:right;">รวมเป็นเงิน</td>
+      <td class="num">{{ "%.2f"|format(subtotal) }} บาท</td>
+    </tr>
+    <tr class="total-row">
       <td colspan="4" style="text-align:right;">ภาษีมูลค่าเพิ่ม {{ vat_rate_percent }}%</td>
-      <td class="num">{{ "%.2f"|format(vat) }}</td>
+      <td class="num">{{ "%.2f"|format(vat) }} บาท</td>
     </tr>
     {% endif %}
-    <tr class="summary-row grand">
-      <td colspan="4" style="text-align:right;">ราคารวมทั้งหมด</td>
+    <tr class="total-row">
+      <td colspan="4" style="text-align:right;">ยอดรวมสุทธิ</td>
       <td class="num">{{ "%.2f"|format(grand_total) }} บาท</td>
     </tr>
   </table>
 
-  {% if order.notes %}<p><b>หมายเหตุ:</b> {{ order.notes }}</p>{% endif %}
+  {% if order.notes %}<p style="font-size:14px;"><b>หมายเหตุ:</b> {{ order.notes }}</p>{% endif %}
 
-  <div class="sign-section">
-    <div class="sign-box">
-      <div class="sign-line">ผู้เสนอราคา / อนุมัติโดย ({{ hq.name if hq else '-' }})</div>
+  <div class="bottom">
+    <div>
+      <div class="pay-box">
+        <h4>ช่องทางการชำระเงิน</h4>
+        {% if hq and hq.bank_name and hq.bank_account_number %}
+        <p>ชำระเงินผ่านธนาคาร<br><b>{{ hq.bank_name }}</b> &nbsp;{{ hq.bank_account_number }}<br>{{ hq.name }}</p>
+        {% else %}
+        <p style="color:#999;">— ยังไม่ได้ตั้งค่าบัญชีธนาคารรับชำระ —</p>
+        {% endif %}
+      </div>
+      <div class="contact-box">
+        <h4>ติดต่อ / สอบถาม</h4>
+        <p>
+          {{ hq.phone if hq and hq.phone else '-' }}<br>
+          Facebook : 3DPrinter Deenaja<br>
+          Line : @3dprinter<br>
+          website : {{ hq.website if hq and hq.website else 'tdprinter.com' }}<br>
+          {{ hq.address if hq and hq.address else '' }}
+        </p>
+      </div>
     </div>
-    <div class="sign-box">
-      <div class="sign-line">ผู้รับใบเสนอราคา ({{ order.center_name }})</div>
+    <div style="display:flex; gap:32px; flex-wrap:wrap;">
+      <div class="sign-box">
+        <div class="sign-line">ผู้เสนอราคา / อนุมัติโดย<br>({{ hq.name if hq else '-' }})</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line">ผู้รับใบเสนอราคา<br>({{ order.center_name }})</div>
+      </div>
     </div>
   </div>
 
