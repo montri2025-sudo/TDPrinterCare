@@ -1,0 +1,10 @@
+<div class="stock-control-room" aria-labelledby="stock-room-title">
+  <header><div><span>VIRTUAL STOCK CONTROL ROOM</span><h2 id="stock-room-title">ห้องมอนิเตอร์คลังสินค้า</h2><p>จอสำหรับทีมงาน · ข้อมูลตามสาขาที่มีสิทธิ์ · {{ warehouse_data.month }}</p></div><span>ข้อมูล ณ {{ warehouse_data.asOf }}</span></header>
+  <div class="stock-room-scene">
+    <div class="stock-room-screens">
+      <div class="stock-wall-screen"><div class="stock-screen-label">INVENTORY OVERVIEW <span>01</span></div><h3>จำนวนสินค้าในคลัง</h3><div class="stock-wall-numbers"><div><span>สินค้าที่แสดง</span><strong id="warehouse-screen-skus">—</strong><small>SKU</small></div><div><span>คงเหลือรวม</span><strong id="warehouse-screen-stock">—</strong><small>หน่วยคละสินค้า</small></div><div><span>ขายเดือนนี้</span><strong id="warehouse-screen-sales">—</strong><small>หน่วยคละสินค้า</small></div><div><span>แนะนำสั่งเพิ่ม</span><strong id="warehouse-screen-order">—</strong><small>หน่วยคละสินค้า · ไม่ใช่ใบสั่งซื้อ</small></div></div><p class="stock-screen-note">ตัวเลขเปลี่ยนตามคำค้นหาและตัวกรองชั้นวางด้านล่าง</p></div>
+      <div class="stock-wall-screen"><div class="stock-screen-label">STOCK WATCH LIST <span>02</span></div><h3>รายการสินค้าและจำนวน</h3><div class="stock-screen-table"><table><thead><tr><th>สินค้า / SKU</th><th>เหลือ</th><th>ขาย</th><th>แนะสั่ง</th></tr></thead><tbody id="warehouse-screen-rows"></tbody></table></div><p id="warehouse-screen-caption" class="stock-screen-note" aria-live="polite"></p></div>
+    </div>
+    <div class="stock-room-staff" aria-hidden="true"><span>STOCK BRIEFING • TEAM OPERATIONS</span></div><p class="stock-room-note">ภาพพนักงานเป็นภาพประกอบ จอสรุปดูได้อย่างเดียว ไม่เติมหรือสั่งซื้อสินค้าอัตโนมัติ</p>
+  </div>
+</div>

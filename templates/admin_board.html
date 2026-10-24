@@ -1,47 +1,131 @@
 {% extends "base.html" %}
-{% block title %}Kanban Board{% endblock %}
+{% block body_class %}office-mode{% endblock %}
+{% block title %}Virtual Office{% if customer_mode %} ของฉัน{% endif %} · TDPrintCare{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/virtual-office.css?v={{ asset_v('virtual-office.css') }}">
+<link rel="stylesheet" href="/static/virtual-office-scene.css?v={{ asset_v('virtual-office-scene.css') }}">
+<script src="/static/virtual-office.js?v={{ asset_v('virtual-office.js') }}" defer></script>
+{% endblock %}
 {% block content %}
-<h1>🗂️ Kanban Board</h1>
-<div class="card">
-  <form method="get" action="/admin/board" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
-    <div><label>ตั้งแต่วันที่</label><input type="date" name="from" value="{{ date_from }}"></div>
-    <div><label>ถึงวันที่</label><input type="date" name="to" value="{{ date_to }}"></div>
-    <button class="btn" type="submit">แสดง</button>
-    <a href="/admin/board" class="btn small secondary">เดือนนี้ (ค่าเริ่มต้น)</a>
-  </form>
-  <p class="hint" style="margin-top:8px;">แสดงตั๋วซ่อมที่แจ้งระหว่างวันที่ {{ date_from }} ถึง {{ date_to }} — ค่าเริ่มต้นคือเดือนปัจจุบัน นับตามวันที่แจ้งซ่อม (created_at)</p>
-</div>
-<div class="kanban">
-  {% for s in statuses %}
-  <div class="kanban-col">
-    <h3>{{ status_labels.get(s, s) }} ({{ board[s]|length }})</h3>
-    {% for t in board[s] %}
-    <div class="kcard">
-      <b>#{{ t.ticket_id }} — {{ t.model }}</b>
-      {% if t.channel == 'booking' %}<br><span class="tag" style="background:var(--blue-bg); color:var(--grad-mid);">🗓️ {{ t.booking_date }} {{ t.booking_time_slot }}</span>{% endif %}<br>
-      {{ t.customer_name }}<br>
-      <span class="tag">{{ t.issue_category }}</span><br>
-      สาขา: {{ t.center_name or '-' }}<br>
-      ช่าง: {{ t.tech_name or '— ยังไม่มอบหมาย —' }}
-      <form method="post" action="/admin/ticket/{{ t.ticket_id }}/update" style="margin-top:8px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <select name="status" style="margin:4px 0;">
-          {% for st in statuses %}
-          <option value="{{ st }}" {% if st == t.status %}selected{% endif %}>{{ status_labels.get(st, st) }}</option>
-          {% endfor %}
-        </select>
-        <select name="assigned_tech_id" style="margin:4px 0;">
-          <option value="">— ไม่มอบหมาย —</option>
-          {% for tech in techs %}
-          <option value="{{ tech.user_id }}" {% if tech.user_id == t.assigned_tech_id %}selected{% endif %}>{{ tech.name }}</option>
-          {% endfor %}
-        </select>
-        <button class="btn small" type="submit">อัปเดต</button>
-      </form>
-      <a href="/admin/ticket/{{ t.ticket_id }}" class="btn small secondary" style="margin-top:6px;">ดูรายละเอียด/รูปภาพ</a>
+{% set rooms = [
+  ('รับงานใหม่', 'RECEPTION', 'คัดกรองและมอบหมายช่าง', 'inbox'),
+  ('ตรวจวิเคราะห์', 'DIAGNOSTIC LAB', 'หาสาเหตุและวางแผนการซ่อม', 'search'),
+  ('รออะไหล่', 'PARTS STATION', 'เตรียมอะไหล่ก่อนเริ่มซ่อม', 'box'),
+  ('กำลังซ่อม', 'REPAIR WORKSHOP', 'ดำเนินการแก้ไขและบันทึกผล', 'tool'),
+  ('ทดสอบคุณภาพ', 'QUALITY CHECK', 'ตรวจสอบการทำงานก่อนส่งมอบ', 'check'),
+  ('พร้อมส่งมอบ', 'HANDOVER', 'งานที่ปิดเรียบร้อยแล้ว', 'flag')
+] %}
+{% macro icon(name) %}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{% if name == 'inbox' %}<path d="M4 4h16v16H4zM4 14h5l2 3h2l2-3h5M8 8h8M8 11h5"/>
+{% elif name == 'search' %}<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M8 10h5m-2-2v5"/>
+{% elif name == 'box' %}<path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M7 5.5l9 5"/>
+{% elif name == 'tool' %}<path d="M14 6a5 5 0 0 0-6 6L3 17a3 3 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-4 4-4-4 4-4z"/>
+{% elif name == 'check' %}<rect x="4" y="3" width="16" height="18" rx="3"/><path d="m8 12 3 3 5-6M9 3v3h6V3"/>
+{% else %}<path d="M5 22V3h14l-3 5 3 5H5M9 6h3"/>{% endif %}
+</svg>
+{% endmacro %}
+<section class="office" aria-labelledby="office-title">
+  <header class="office-heading">
+    <div><div class="office-eyebrow"><span class="office-square"></span> WORKSPACE / SERVICE OPERATIONS</div>
+      <h1 id="office-title">Virtual Office{% if customer_mode %} ของฉัน{% endif %}<span class="office-title-dot">.</span></h1>
+      {% if customer_mode %}<p>เครื่องของคุณอยู่ขั้นตอนไหน ดูได้จากห้องที่เครื่องแสดงอยู่<span>ดูเฉพาะเครื่องของคุณ • ข้อมูลงานล่าสุด • ดูได้อย่างเดียว</span></p>{% else %}<p>ทุกงานซ่อม ในพื้นที่เดียวกัน <span>เห็นขั้นตอน • ดูผู้รับผิดชอบ • ติดตามความคืบหน้า</span></p>{% endif %}
     </div>
+    <div class="office-heading-actions"><button type="button" class="office-refresh" id="office-refresh" aria-label="โหลดข้อมูลงานล่าสุด">↻ <span>อัปเดตข้อมูล</span></button><a class="btn" href="{{ '/customer/new' if customer_mode else '/admin/ticket/new' }}">{{ '＋ แจ้งซ่อม' if customer_mode else '＋ รับงานใหม่' }}</a></div>
+  </header>
+  <div id="office-notice" class="office-notice" role="status" hidden></div>
+  {% set totals = namespace(all=0) %}{% for s in statuses %}{% set totals.all = totals.all + board[s]|length %}{% endfor %}
+  <div class="office-stats" aria-label="{{ 'ภาพรวมเครื่องของคุณ' if customer_mode else 'ภาพรวมร้านจากงานในช่วงวันที่เลือก' }}">
+    <div class="office-stat"><span class="office-stat-label"><i class="stat-dot green"></i>{{ 'เครื่องของฉัน' if customer_mode else 'ลูกค้าในคิวรับงาน' }}</span><div><strong id="office-customer-count">—</strong><span class="office-stat-note">{{ 'เครื่องที่ลงทะเบียนกับบัญชีนี้' if customer_mode else 'ราย · นับลูกค้าไม่ซ้ำจากงานใหม่' }}</span></div><span class="stat-mark">♙</span></div>
+    <div class="office-stat"><span class="office-stat-label"><i class="stat-dot amber"></i>เครื่องรอซ่อม</span><div><strong id="office-waiting-count">—</strong><span class="office-stat-note">รับงาน · ตรวจ · รออะไหล่</span></div></div>
+    <div class="office-stat"><span class="office-stat-label"><i class="stat-dot blue"></i>เครื่องกำลังซ่อม / ทดสอบ</span><div><strong id="office-repair-count">—</strong><span class="office-stat-note">เครื่องที่อยู่ระหว่างดำเนินการ</span></div></div>
+    <div class="office-stat"><span class="office-stat-label"><i class="stat-dot green"></i>เครื่องรอจัดส่ง / นัดรับ</span><div><strong id="office-dispatch-count">—</strong><span class="office-stat-note">ซ่อมเสร็จและระบุรอส่งมอบแล้ว</span></div></div>
+  </div>
+  {% if customer_mode %}
+  <div class="customer-office-intro"><strong>พื้นที่ติดตามส่วนตัวของคุณ</strong><span>แสดงงานซ่อมล่าสุดของแต่ละเครื่อง ไม่จำกัดเฉพาะเดือนนี้ ห้องแทนขั้นตอนงาน ไม่ใช่ตำแหน่งที่ตรวจจับแบบเรียลไทม์</span></div>
+  <div class="customer-device-list" aria-label="เครื่องพิมพ์ของฉัน">
+  {% for device in office_devices %}<button type="button" class="customer-device-card" data-customer-device="{{ device.sn }}" aria-pressed="false"><span class="customer-device-symbol" aria-hidden="true">▣</span><strong>{{ device.model }}</strong><small>{{ device.sn }}</small><span>{{ device.label }}</span></button>
+  {% else %}<div class="customer-office-empty"><strong>ยังไม่มีเครื่องพิมพ์ในบัญชีนี้</strong><p>เพิ่มเครื่องพิมพ์ของคุณเพื่อเริ่มติดตามงานซ่อม</p><a class="btn small" href="/customer/devices/new">＋ เพิ่มเครื่องพิมพ์</a></div>{% endfor %}
+  </div>
+  {% endif %}
+  <div class="office-toolbar">
+    <label class="office-search"><span aria-hidden="true">⌕</span><input id="office-search" type="search" placeholder="ค้นหาเลขงาน ลูกค้า รุ่นเครื่อง หรือช่าง" aria-label="ค้นหางาน"></label>
+    <label class="office-filter-label"><span>สาขา</span><select id="office-center"><option value="">ทุกสาขาที่มีสิทธิ์</option></select></label>
+    <label class="office-filter-label" {% if customer_mode %}hidden{% endif %}><span>ผู้รับผิดชอบ</span><select id="office-tech"><option value="">ช่างทั้งหมด</option><option value="unassigned">ยังไม่มอบหมาย</option></select></label>
+    {% if customer_mode %}<label class="office-filter-label"><span>เครื่อง</span><select id="office-device"><option value="">ทุกเครื่องของฉัน</option>{% for device in office_devices %}<option value="{{ device.sn }}">{{ device.model }} · {{ device.sn }}</option>{% endfor %}</select></label>{% endif %}
+    <button class="office-reset" type="button" id="office-reset">ล้างตัวกรอง</button>
+  </div>
+  {% if not customer_mode %}
+  <details class="office-date-filter"><summary>ช่วงวันที่รับงาน <b>{{ date_from }} — {{ date_to }}</b><span>เปลี่ยนช่วงวันที่</span></summary>
+    <form method="get" action="/admin/board"><label>ตั้งแต่วันที่<input type="date" name="from" value="{{ date_from }}" required></label><label>ถึงวันที่<input type="date" name="to" value="{{ date_to }}" required></label><button class="btn small" type="submit">แสดงงาน</button><a href="/admin/board">เดือนนี้</a></form>
+    <p>กรองตามวันที่รับงาน ไม่ใช่วันที่เปลี่ยนสถานะ</p>
+  </details>
+  {% endif %}
+  {% if customer_mode %}<p id="office-device-location" class="customer-device-location" role="status" aria-live="polite">เลือกเครื่องของคุณด้านบนเพื่อเน้นห้องที่เครื่องอยู่ในขั้นตอนปัจจุบัน</p>{% endif %}
+  <div class="office-map-heading"><div><h2>แผนผังร้านและห้องทำงาน<span class="office-map-badge">6 โซน</span></h2><p>{{ 'คลิกเครื่องของคุณเพื่อดูสถานะและประวัติการซ่อม' if customer_mode else 'คลิกห้องเพื่อกรองงาน · คลิกเครื่องเพื่อดูและเปลี่ยนสถานะ' }}</p></div><span class="office-snapshot">ข้อมูล ณ เวลาเปิดหน้า <span id="office-shown-count" aria-live="polite">{{ totals.all }} งาน</span></span></div>
+  <nav class="office-journey" aria-label="ขั้นตอนงานซ่อม">
+    <button type="button" data-stage="" class="office-stage-all is-selected" aria-pressed="true">ทุกขั้นตอน</button>
+    {% for s in statuses %}<button type="button" data-stage="{{ s }}" aria-pressed="false"><span>{{ loop.index }}</span>{{ rooms[loop.index0][0] }}<small>{{ board[s]|length }}</small></button>{% endfor %}
+  </nav>
+  <div class="office-operations">
+    <div class="office-scene-panel">
+      <div class="office-scene-topbar"><span><i></i> SERVICE FLOOR <b>{{ 'เครื่องของคุณในแต่ละขั้นตอน' if customer_mode else 'แผนผังสถานะงานซ่อม' }}</b></span><span>{{ 'เฉพาะงานของบัญชีคุณ' if customer_mode else 'ข้อมูลจริงในช่วงวันที่และตัวกรองที่เลือก' }}</span></div>
+      <div class="office-scene-viewport"><svg id="office-scene" viewBox="0 0 1200 800" role="group" aria-label="สำนักงานสามมิติ คลิกห้องเพื่อกรองสถานะ หรือคลิกเครื่องเพื่อเปิดงาน"><title>แผนผังร้าน Virtual Office</title></svg></div>
+      <div class="office-scene-bottom"><span><i class="legend-dot"></i> งานในระบบ <i class="legend-dot amber"></i> รอดำเนินการ <i class="legend-dot teal"></i> ซ่อม / ทดสอบ <i class="legend-dot violet"></i> ส่งมอบ</span><div><button type="button" id="office-zoom-in" aria-label="ขยายแผนผัง">＋</button><button type="button" id="office-zoom-out" aria-label="ย่อแผนผัง">−</button><button type="button" id="office-zoom-reset" aria-label="คืนขนาดแผนผัง">↺</button></div></div>
+    </div>
+    <aside class="office-shop-panel" aria-label="หน้าร้านและการจัดส่ง">
+      <header><span>FRONT OF HOUSE</span><h3>หน้าร้าน / รับบริการ</h3></header>
+      <div class="shop-queue-visual" aria-hidden="true"><span class="shop-awning"></span><span class="shop-window"></span><span class="shop-door"></span><b>TD PRINT CARE</b></div>
+      <p id="office-front-summary">กำลังโหลดคิวรับบริการ</p><button type="button" class="shop-action" id="office-front-filter">ดูคิวรับงานใหม่ →</button>
+      <div class="shop-divider"></div><header><span>DISPATCH DESK</span><h3>ติดตามการส่งมอบ</h3></header>
+      <div id="office-dispatch-list" class="office-dispatch-list"></div>
+      <p class="shop-data-note">คิวหน้าร้านนับจากงานสถานะรับงานใหม่ ไม่ใช่จำนวนผู้ที่อยู่ในร้านจริง งานปิดเก่าที่ยังไม่ระบุการส่งมอบจะแสดงแยกไว้</p>
+    </aside>
+  </div>
+  <div class="office-task-heading"><h2>งานในแต่ละห้อง <span>คลิกเพื่อดูรายละเอียด</span></h2><span id="office-task-count"></span></div>
+  <div class="office-floor" id="office-floor">
+    {% for s in statuses %}{% set room = rooms[loop.index0] %}
+    <section class="office-room room-{{ loop.index }}" data-room-status="{{ s }}" aria-labelledby="room-title-{{ loop.index }}">
+      <header class="room-header"><span class="room-icon">{{ icon(room[3]) }}</span><div><span class="room-en">{{ room[1] }}</span><h3 id="room-title-{{ loop.index }}">{{ room[0] }}</h3></div><span class="room-count" data-room-count>{{ board[s]|length }}</span></header>
+      <div class="room-description"><span>0{{ loop.index }}</span>{{ room[2] }}</div>
+      <div class="room-desks">
+      {% for t in board[s] %}
+        <button type="button" class="office-desk" data-ticket-id="{{ t.ticket_id }}" aria-label="เปิดงาน #{{ t.ticket_id }} {{ t.model }}">
+          <span class="desk-topline"><span class="desk-id">#{{ t.ticket_id }}</span>{% if t.channel == 'booking' %}<span class="desk-booking">นัดหมาย</span>{% endif %}<span class="desk-open" aria-hidden="true">↗</span></span>
+          <span class="desk-workspace"><span class="desk-machine" aria-hidden="true"><i></i><b></b></span><span class="desk-details"><strong>{{ t.model }}</strong><span>{{ t.customer_name }}</span></span></span>
+          <span class="desk-issue">{{ t.issue_category or 'ไม่ระบุอาการ' }}</span>
+          <span class="desk-bottom"><span class="desk-avatar{% if not t.tech_name %} unassigned{% endif %}">{{ (t.tech_name or '?')[:1] }}</span><span>{{ t.tech_name or 'รอมอบหมายช่าง' }}</span><span class="desk-center">{{ t.center_name or 'ส่วนกลาง' }}</span></span>
+        </button>
+      {% endfor %}
+      <div class="room-empty" {% if board[s] %}hidden{% endif %}><span class="empty-desk" aria-hidden="true"></span><p>ยังไม่มีงานในโซนนี้</p><small>งานจะแสดงที่นี่เมื่ออยู่ในขั้นตอนนี้</small></div>
+      </div>
+      <footer class="room-footer"><span class="room-footer-dot"></span>{{ status_labels.get(s, s) }}<span aria-hidden="true">{% if not loop.last %}ขั้นตอน {{ loop.index }} / 6 →{% else %}ครบกระบวนการ ✓{% endif %}</span></footer>
+    </section>
     {% endfor %}
   </div>
-  {% endfor %}
-</div>
+  <p class="office-footnote">ลำดับโซนแสดงกระบวนการทำงาน ส่วนประวัติจริงของแต่ละงานอยู่ในแผงรายละเอียด • {% if customer_mode %}คุณดูสถานะได้อย่างเดียว หากต้องการสอบถามเพิ่มเติม กรุณาติดต่อสาขาที่รับงาน{% else %}การเปลี่ยนสถานะจะบันทึกเมื่อกดบันทึกเท่านั้น · หน้าร้านแสดงคิวในระบบ ไม่ใช่การตรวจจับคนจริง{% endif %}</p>
+  <noscript><p class="office-notice">กรุณาเปิด JavaScript เพื่อใช้ตัวกรองและแผงแก้ไขงาน คุณยังเปิดรายละเอียดงานได้จากรายการต่อไปนี้</p>{% for s in statuses %}{% for t in board[s] %}<p><a href="{{ '/customer/ticket/' if customer_mode else '/admin/ticket/' }}{{ t.ticket_id }}">#{{ t.ticket_id }} · {{ t.model }}</a></p>{% endfor %}{% endfor %}</noscript>
+</section>
+<dialog id="office-dialog" class="office-dialog" aria-labelledby="office-detail-title">
+  <div class="office-detail-header"><div><span class="office-eyebrow">JOB DETAILS</span><h2 id="office-detail-title">รายละเอียดงาน</h2></div><button type="button" id="office-close" aria-label="ปิดรายละเอียด">✕</button></div>
+  <div class="office-detail-body">
+    <span id="office-detail-status" class="office-detail-badge"></span><h3 id="office-detail-model"></h3><p id="office-detail-customer" class="office-detail-customer"></p>
+    <ol id="office-detail-steps" class="office-detail-steps" aria-label="ตำแหน่งในกระบวนการ"></ol>
+    <dl class="office-detail-grid"><div><dt>หมายเลขเครื่อง</dt><dd id="office-detail-sn"></dd></div><div><dt>สาขา</dt><dd id="office-detail-center"></dd></div><div><dt>รับงานเมื่อ</dt><dd id="office-detail-created"></dd></div><div><dt>วันนัดหมาย</dt><dd id="office-detail-booking"></dd></div></dl>
+    <h4>อาการ / รายละเอียด</h4><p id="office-detail-description" class="office-description"></p>
+    {% if not customer_mode %}
+    <form method="post" id="office-update-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="next" id="office-return-url"><input type="hidden" name="expected_status" id="office-expected-status"><input type="hidden" name="expected_tech_id" id="office-expected-tech"><input type="hidden" name="expected_handover" id="office-expected-handover">
+      <div class="office-edit-heading"><h4>อัปเดตงาน</h4><span>บันทึกลงประวัติงาน</span></div>
+      <label for="office-edit-status">สถานะงาน</label><select name="status" id="office-edit-status" required>{% for s in statuses %}<option value="{{ s }}">{{ status_labels.get(s, s) }}</option>{% endfor %}</select>
+      <label for="office-edit-tech">ช่างผู้รับผิดชอบ</label><select name="assigned_tech_id" id="office-edit-tech"><option value="">— ยังไม่มอบหมาย —</option></select>
+      <div id="office-handover-field"><label for="office-edit-handover">การส่งมอบเครื่อง</label><select name="handover_status" id="office-edit-handover"><option value="unrecorded">ยังไม่ระบุการส่งมอบ</option><option value="pending">รอจัดส่ง / นัดรับ</option><option value="shipped">จัดส่งแล้ว</option><option value="collected">ลูกค้ารับที่ร้านแล้ว</option></select><p class="office-handover-note">ระบุการส่งมอบได้เมื่อปิดงานซ่อมแล้วเท่านั้น</p></div>
+      <button type="button" class="office-next" id="office-next"></button><p id="office-change-summary" class="office-change-summary" aria-live="polite">เลือกสถานะหรือช่างที่ต้องการ แล้วกดบันทึก</p>
+      <div class="office-save-row"><a id="office-full-detail" class="office-detail-link">รายละเอียด / รูปภาพ ↗</a><button class="btn" type="submit" id="office-save" disabled>บันทึกการเปลี่ยนแปลง</button></div>
+    </form>
+    {% else %}<div class="customer-readonly-note">ดูสถานะได้อย่างเดียว ทีมงานจะเป็นผู้บันทึกความคืบหน้า</div><p id="office-customer-handover" class="office-description"></p><a id="office-full-detail" class="btn small secondary">เปิดรายละเอียดงาน / รูปภาพ ↗</a>{% endif %}
+    <h4 class="office-history-heading">ประวัติการดำเนินงานจริง</h4><ol id="office-history" class="office-history"></ol>
+  </div>
+</dialog>
+<script type="application/json" id="office-data">{{ {'tickets': office_tickets, 'techs': office_techs, 'statuses': statuses, 'labels': status_labels, 'returnUrl': office_return_url, 'readOnly': customer_mode|default(false), 'devices': office_devices|default([])}|tojson }}</script>
 {% endblock %}

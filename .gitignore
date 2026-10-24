@@ -1,0 +1,13 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+mysql-data/
+postgres-data/
+odoo-data/
+odoo-db-data/
+uploads/
+artifacts/
+handoff/

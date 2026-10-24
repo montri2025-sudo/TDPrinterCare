@@ -8,6 +8,7 @@
 {% endblock %}
 {% block content %}
 <h1>📊 Dashboard ของฉัน</h1>
+<div class="customer-office-entry"><div><strong>เครื่องของฉันอยู่ขั้นตอนไหน?</strong><p>ดูห้องทำงานและความคืบหน้าล่าสุดใน Virtual Office ของคุณ</p></div><a class="btn" href="/customer/office">เปิด Virtual Office →</a></div>
 <p class="hint" style="margin-top:-6px;">👆 คลิกที่ตัวเลขบนการ์ดเพื่อดูรายละเอียด</p>
 
 <h2>🖨️ เครื่องพิมพ์ของฉัน แยกตามประเภท</h2>
@@ -142,7 +143,7 @@
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
         data.map(function (r) {
           return '<tr><td><a href="/customer/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
-            r.model + '</td><td>' + (CUST_STATUS_ICONS[r.status] || '') + ' ' + r.status_label + '</td><td>' + r.date + '</td></tr>';
+            escapeHtmlText(r.model) + '</td><td>' + (CUST_STATUS_ICONS[r.status] || '') + ' ' + r.status_label + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     }
     document.getElementById('custCasesOverlay').style.display = 'flex';
@@ -166,7 +167,7 @@
           } else if (kind === 'in_repair' && d.open_ticket_id) {
             detail = '<a href="/customer/ticket/' + d.open_ticket_id + '">ตั๋ว #' + d.open_ticket_id + '</a>';
           }
-          return '<tr><td>' + d.device_sn + '</td><td>' + d.model + '</td><td>' + Math.round(d.total_usage_hours) + ' ชม.</td><td>' +
+          return '<tr><td>' + escapeHtmlText(d.device_sn) + '</td><td>' + escapeHtmlText(d.model) + '</td><td>' + Math.round(d.total_usage_hours) + ' ชม.</td><td>' +
             detail + '</td><td><a href="/device/' + encodeURIComponent(d.device_sn) + '/history" class="btn small secondary">ประวัติ</a></td></tr>';
         }).join('') + '</table>';
     }
@@ -185,7 +186,7 @@
     } else {
       body.innerHTML = '<table class="sortable"><tr><th>SN</th><th>รุ่น</th><th>ชั่วโมงใช้งานสะสม</th><th>สถานะ</th><th data-no-sort></th></tr>' +
         data.map(function (d) {
-          return '<tr><td>' + d.device_sn + '</td><td>' + d.model + '</td><td>' + Math.round(d.total_usage_hours) + ' ชม.</td><td>' +
+          return '<tr><td>' + escapeHtmlText(d.device_sn) + '</td><td>' + escapeHtmlText(d.model) + '</td><td>' + Math.round(d.total_usage_hours) + ' ชม.</td><td>' +
             d.status_label + '</td><td><a href="/device/' + encodeURIComponent(d.device_sn) + '/history" class="btn small secondary">ประวัติ</a></td></tr>';
         }).join('') + '</table>';
     }

@@ -103,6 +103,17 @@ services:
       - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:-}
       # cookie แบบ Secure (ส่งเฉพาะผ่าน HTTPS) — เปิดไว้เสมอเมื่อใช้งานจริงผ่าน reverse proxy ที่ทำ TLS
       - COOKIE_SECURE=${COOKIE_SECURE:-1}
+      # Trust only the immediate reverse proxy address/range; empty ignores forwarded headers.
+      - TRUSTED_PROXY_CIDRS=${TRUSTED_PROXY_CIDRS:-}
+      # --- API อ่านอย่างเดียวสำหรับ TDPrintSpace (/api/v1/office/*) — ปิดอยู่ตามค่าเริ่มต้น (เว้นว่าง = ตอบ 503)
+      # เปิดใช้ต้องตั้งครบ 3 ค่านี้ใน .env — ดู docs/office-api.md (ห้ามใส่ token จริงในไฟล์นี้)
+      - INTEGRATION_API_TOKEN_SHA256=${INTEGRATION_API_TOKEN_SHA256:-}
+      - INTEGRATION_API_CENTER_ID=${INTEGRATION_API_CENTER_ID:-}
+      - INTEGRATION_API_DEVICE_REF_KEY=${INTEGRATION_API_DEVICE_REF_KEY:-}
+      - INTEGRATION_API_MAX_JOBS=${INTEGRATION_API_MAX_JOBS:-}
+      - INTEGRATION_API_CLOSED_WINDOW_DAYS=${INTEGRATION_API_CLOSED_WINDOW_DAYS:-}
+      - INTEGRATION_API_RATE_LIMIT_PER_MIN=${INTEGRATION_API_RATE_LIMIT_PER_MIN:-}
+      - INTEGRATION_API_AUTH_FAIL_LIMIT_PER_MIN=${INTEGRATION_API_AUTH_FAIL_LIMIT_PER_MIN:-}
       # --- อีเมลแจ้งเตือน (Alert & Notification) — ไม่บังคับ เว้นว่างไว้ได้ ระบบจะแจ้งเตือนในแอป (in-app)
       # ตามปกติ แค่จะไม่ส่งอีเมลควบคู่ไปด้วยเท่านั้น ใส่ค่าจริงใน .env เพื่อเปิดใช้งานการส่งอีเมล
       - SMTP_HOST=${SMTP_HOST:-}

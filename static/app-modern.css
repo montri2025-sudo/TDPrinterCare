@@ -1,0 +1,20 @@
+/* Shared application chrome. Existing pages keep their layouts and controls. */
+:root { --brand:#236b63; --brand-dark:#174e49; --radius:14px; --bg:#f4f6f8; --ink:#1b2b3c; --muted:#74808f; }
+.topnav { background:#172e35; box-shadow:none; min-height:64px; padding:10px 24px; }
+.topnav .brand { letter-spacing:-.5px; font-size:17px; }
+.topnav .right > span { background:#ffffff0a; border:1px solid #ffffff14; }
+.topnav a.btn { background:#ffffff12; border-color:#ffffff20; color:#fff; }
+.sidebar { top:64px; min-height:calc(100vh - 64px); padding:24px 12px; background:#fff; }
+.sidebar nav { gap:5px; }
+.sidebar nav a { border-radius:9px; padding:11px 14px; color:#657181; font-size:13px; }
+.sidebar nav a[aria-current="page"] { color:#22685e; background:#e8f2ef; font-weight:700; box-shadow:inset 3px 0 #358776; }
+.sidebar nav a:hover { background:#f0f5f3; color:#22685e; }
+.card { border-color:#e5eaed; box-shadow:0 2px 7px #1b2c3a03; }
+.btn:not(.secondary):not(.danger) { background:#266c61; border-color:#266c61; box-shadow:0 3px 6px #266c6114; }
+.btn:not(.secondary):not(.danger):hover { background:#19574e; border-color:#19574e; }
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible { outline:3px solid #64b9a8; outline-offset:3px; }
+@media(max-width:880px) { .sidebar { top:64px; height:calc(100vh - 64px); } .topnav { padding:10px 14px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation:none!important; transition:none!important; } }
+.customer-office-entry { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 22px; margin:18px 0 24px; border:1px solid #c8ded5; border-radius:12px; background:linear-gradient(110deg,#eaf5ee,#f5faf9); color:#285a47; }
+.customer-office-entry strong { font-size:16px; }.customer-office-entry p { margin:5px 0 0; font-size:12px; color:#668a7b; }.customer-office-entry .btn { white-space:nowrap; }
+@media(max-width:560px) { .customer-office-entry { align-items:start; flex-direction:column; }.customer-office-entry .btn { align-self:flex-end; } }

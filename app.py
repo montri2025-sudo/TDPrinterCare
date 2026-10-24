@@ -10,6 +10,7 @@ import datetime
 import html
 import hmac
 import io
+import ipaddress
 import json
 import os
 import re
@@ -31,6 +32,7 @@ from socketserver import ThreadingMixIn
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import db
+import integration_api
 import odoo_client
 
 BASE_DIR = os.path.dirname(__file__)
@@ -124,6 +126,11 @@ SESSION_ABSOLUTE_TIMEOUT = 24 * 3600  # อายุ session สูงสุด 
 
 # ป้องกันการเดารหัสผ่านซ้ำๆ (brute force) — นับความพยายาม login ผิดต่อคู่ (IP, username)
 LOGIN_ATTEMPTS = {}
+# Only these immediate peers may supply a forwarded client chain. Empty = trust none.
+TRUSTED_PROXY_NETWORKS = tuple(ipaddress.ip_network(value.strip()) for value in
+                               os.environ.get("TRUSTED_PROXY_CIDRS", "").split(",") if value.strip())
+MAX_REQUEST_BYTES = 128 * 1024 * 1024  # permits one 100 MB ShareSpace attachment plus form overhead
+
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_ATTEMPT_WINDOW = 15 * 60    # นับเฉพาะความพยายามผิดภายใน 15 นาทีล่าสุด
 LOGIN_LOCKOUT_SECONDS = 15 * 60   # ล็อกชั่วคราว 15 นาทีหลังพยายามผิดครบจำนวน
@@ -184,6 +191,8 @@ def parse_post(environ):
         length = int(environ.get("CONTENT_LENGTH", 0) or 0)
     except ValueError:
         length = 0
+    if length < 0 or length > MAX_REQUEST_BYTES:
+        raise HttpError(413, "ข้อมูลที่ส่งมีขนาดใหญ่เกินกำหนด")
     body = environ["wsgi.input"].read(length) if length else b""
     return {k: v[0] for k, v in parse_qs(body.decode("utf-8")).items()}
 
@@ -195,7 +204,54 @@ def safe_filename(name):
     return name or "file"
 
 
-def parse_multipart(environ):
+_IMAGE_SIGNATURES = {
+    ".png": ("image/png", lambda data: data.startswith(b"\x89PNG\r\n\x1a\n")),
+    ".jpg": ("image/jpeg", lambda data: data.startswith(b"\xff\xd8\xff")),
+    ".jpeg": ("image/jpeg", lambda data: data.startswith(b"\xff\xd8\xff")),
+    ".gif": ("image/gif", lambda data: data.startswith((b"GIF87a", b"GIF89a"))),
+    ".webp": ("image/webp", lambda data: data[:4] == b"RIFF" and data[8:12] == b"WEBP"),
+    ".bmp": ("image/bmp", lambda data: data.startswith(b"BM")),
+}
+
+
+def validate_upload(file_info):
+    """Do not let client-supplied MIME types make HTML/SVG executable on this origin."""
+    if not file_info or not file_info.get("filename"):
+        return
+    ext = os.path.splitext(file_info["filename"])[1].lower()
+    declared = file_info.get("content_type", "").split(";", 1)[0].strip().lower()
+    data = file_info.get("data", b"")
+    if declared.startswith("image/"):
+        rule = _IMAGE_SIGNATURES.get(ext)
+        if not rule or declared != rule[0] or not rule[1](data):
+            raise ValueError("ชนิดไฟล์รูปภาพ นามสกุล และเนื้อหาไฟล์ไม่ตรงกัน หรือเป็นชนิดที่ไม่รองรับ")
+    elif declared == "application/pdf":
+        if ext != ".pdf" or not data.startswith(b"%PDF-"):
+            raise ValueError("ไฟล์ PDF ไม่ถูกต้อง")
+    elif declared.startswith("video/"):
+        valid = ((ext in (".mp4", ".m4v", ".mov") and data[4:8] == b"ftyp")
+                 or (ext in (".webm", ".mkv") and data.startswith(b"\x1a\x45\xdf\xa3"))
+                 or (ext == ".avi" and data[:4] == b"RIFF" and data[8:12] == b"AVI "))
+        if not valid:
+            raise ValueError("ไฟล์วิดีโอไม่ถูกต้องหรือเป็นชนิดที่ไม่รองรับ")
+    elif ext in (".html", ".htm", ".svg", ".xhtml", ".xml", ".js", ".mjs"):
+        raise ValueError("ไม่รองรับไฟล์ที่สามารถเรียกใช้สคริปต์ได้")
+
+
+def _upload_headers(ctype, size):
+    # Also protects previously stored HTML/SVG files; never render active uploads inline.
+    inline = {rule[0] for rule in _IMAGE_SIGNATURES.values()} | {
+        "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"}
+    headers = [("Content-Type", ctype or "application/octet-stream"),
+               ("Content-Length", str(size)), ("X-Content-Type-Options", "nosniff"),
+               ("Content-Security-Policy", "sandbox; default-src 'none'"),
+               ("Cache-Control", "private, no-store")]
+    if ctype not in inline:
+        headers.append(("Content-Disposition", "attachment"))
+    return headers
+
+
+def parse_multipart(environ, *, validate_files=True):
     """
     Minimal multipart/form-data parser (RFC 2388) เขียนเองด้วย stdlib ล้วน — ไม่พึ่งโมดูล
     cgi ที่เลิกใช้แล้วและถูกถอดออกจาก Python 3.13 เพื่อให้ยังใช้ได้กับ Python เวอร์ชันใหม่ๆ
@@ -218,6 +274,8 @@ def parse_multipart(environ):
         length = int(environ.get("CONTENT_LENGTH", 0) or 0)
     except ValueError:
         length = 0
+    if length < 0 or length > MAX_REQUEST_BYTES:
+        raise HttpError(413, "ข้อมูลที่ส่งมีขนาดใหญ่เกินกำหนด")
     body = environ["wsgi.input"].read(length) if length else b""
 
     fields, files = {}, {}
@@ -255,16 +313,31 @@ def parse_multipart(environ):
         else:
             fields[field_name] = content.decode("utf-8", errors="replace")
 
+    if validate_files:
+        for entries in files.values():
+            for file_info in entries:
+                try:
+                    validate_upload(file_info)
+                except ValueError as exc:
+                    raise HttpError(400, str(exc))
     return fields, files
 
 
 def _client_ip(environ):
-    """IP ของผู้ใช้จริง — รองรับกรณีอยู่หลัง reverse proxy (nginx-proxy ฯลฯ) ที่ส่ง
-    X-Forwarded-For มาให้ ใช้ IP ตัวแรกในรายการ (ตัวใกล้ผู้ใช้ที่สุด)"""
-    fwd = environ.get("HTTP_X_FORWARDED_FOR", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return environ.get("REMOTE_ADDR", "unknown")
+    """Walk the forwarded chain from the trusted peer; never trust an arbitrary header."""
+    peer = environ.get("REMOTE_ADDR", "unknown")
+    try:
+        current = ipaddress.ip_address(peer)
+        hops = environ.get("HTTP_X_FORWARDED_FOR", "").split(",")
+        for hop in reversed(hops):
+            if not any(current in network for network in TRUSTED_PROXY_NETWORKS):
+                break
+            if not hop.strip():
+                break
+            current = ipaddress.ip_address(hop.strip())
+        return str(current)
+    except ValueError:
+        return peer
 
 
 def _get_session(token):
@@ -478,6 +551,7 @@ def save_payment_slip(ticket_id, file_info):
     """ตรวจสอบและบันทึกไฟล์รูปสลิปโอนเงิน 1 ไฟล์ — เก็บในโฟลเดอร์อัปโหลดเดียวกับตั๋วนี้
     (uploads/<ticket_id>/) เพื่อให้ใช้เส้นทาง /media/<ticket_id>/<filename> ที่มีอยู่แล้ว
     เสิร์ฟไฟล์และจำกัดสิทธิ์การเข้าถึงได้ทันทีโดยไม่ต้องเพิ่ม route ใหม่ คืนชื่อไฟล์ที่บันทึกจริง"""
+    validate_upload(file_info)
     if not file_info or not file_info.get("filename"):
         raise ValueError("กรุณาแนบรูปสลิปการโอนเงิน")
     if not file_info["content_type"].startswith("image/"):
@@ -497,6 +571,7 @@ def save_device_proof(device_sn, file_info):
     """บันทึกไฟล์หลักฐานการสั่งซื้อเครื่องพิมพ์ 1 ไฟล์ (รูปภาพหรือ PDF เท่านั้น) — ไม่บังคับแนบ
     คืน None ถ้าไม่ได้เลือกไฟล์เลย (ไม่ใช่ error) หรือคืนชื่อไฟล์ที่บันทึกจริงถ้าแนบและผ่านการตรวจสอบแล้ว
     เก็บแยกโฟลเดอร์ต่อเครื่อง (ตาม device_sn ที่ทำความสะอาดแล้ว กันอักขระอันตราย/path traversal)"""
+    validate_upload(file_info)
     if not file_info or not file_info.get("filename"):
         return None
     content_type = file_info.get("content_type", "")
@@ -515,6 +590,7 @@ def save_device_proof(device_sn, file_info):
 
 def save_center_logo(center_id, file_info):
     """บันทึกโลโก้สาขา 1 ไฟล์ (รูปภาพเท่านั้น เพราะแสดงบนหน้าแรกสาธารณะด้วย) คืน None ถ้าไม่ได้แนบไฟล์มา"""
+    validate_upload(file_info)
     if not file_info or not file_info.get("filename"):
         return None
     if not file_info["content_type"].startswith("image/"):
@@ -533,6 +609,7 @@ def save_center_logo(center_id, file_info):
 def save_center_document(center_id, file_info, prefix):
     """บันทึกไฟล์เอกสารประจำสาขา 1 ไฟล์ (รูปภาพหรือ PDF) เช่น หนังสือรับรองบริษัท/ภ.พ.20 —
     prefix กันชื่อไฟล์ชนกันระหว่างเอกสารคนละประเภทของศูนย์เดียวกัน คืน None ถ้าไม่ได้แนบไฟล์มา"""
+    validate_upload(file_info)
     if not file_info or not file_info.get("filename"):
         return None
     content_type = file_info.get("content_type", "")
@@ -566,6 +643,7 @@ def _delete_center_file(center_id, filename):
 def save_marketing_file(file_info):
     """บันทึกไฟล์ทรัพยากรโปรโมท 1 ไฟล์ (รูปภาพหรือ PDF เท่านั้น — ใช้กับประเภท Brochure/Document
     ส่วนประเภท Video ใช้ video_url ไม่มีไฟล์) คืน None ถ้าไม่ได้แนบไฟล์มา"""
+    validate_upload(file_info)
     if not file_info or not file_info.get("filename"):
         return None
     content_type = file_info.get("content_type", "")
@@ -600,6 +678,7 @@ def save_activity_file(file_info):
     """บันทึกไฟล์แนบของกิจกรรม ShareSpace 1 ไฟล์ (รูปภาพ/PDF/วิดีโอ/ZIP/เอกสาร Office) รองรับหลากหลายประเภท
     มากกว่าทรัพยากรโปรโมทเดิม เพราะกิจกรรมเดียวอาจมีทั้งภาพสินค้า โบรชัวร์ วิดีโอโปรโมท และไฟล์ ZIP รวมสื่อ
     คืน (stored_name, size_bytes) — คืน None ถ้าไม่ได้แนบไฟล์มา"""
+    validate_upload(file_info)
     if not file_info or not file_info.get("filename"):
         return None
     content_type = file_info.get("content_type", "") or ""
@@ -2927,7 +3006,20 @@ def admin_dashboard(environ, m, conn, user):
     dash_chart_tickets_closed = _monthly_count(tickets_closed_rows, "closed_at", dash_labels)
     dash_chart_labor = _monthly_sum(labor_rows, "created_at", "labor_fee", dash_labels)
 
-    return render("admin_dashboard.html", counts=counts, workload=workload,
+    monitor_data = {
+        "scope": scope_label, "from": from_display, "to": to_display,
+        "months": dash_labels,
+        "created": dash_chart_tickets_created, "closed": dash_chart_tickets_closed,
+        "fdm": dash_chart_fdm, "resin": dash_chart_resin, "materials": dash_chart_material,
+        "statusLabels": [db.STATUS_LABELS[status] for status in db.STATUSES],
+        "statusCounts": [counts.get(status, 0) for status in db.STATUSES],
+        "workload": [{"name": w["name"], "count": w["open_tickets"]} for w in workload],
+        "averageDays": avg_repair_days,
+        "unassigned": unassigned_count, "pendingPayments": pending_payments_count,
+        "lowStock": len(low_stock),
+        "todayBookings": sum(1 for booking in upcoming_bookings if booking["booking_date"] == db.now()[:10]),
+    }
+    return render("admin_dashboard.html", monitor_data=monitor_data, counts=counts, workload=workload,
                    low_stock=low_stock, low_stock_by_category=low_stock_by_category,
                    user=user, total=sum(counts.values()),
                    maintenance_due=maintenance_due,
@@ -2963,7 +3055,7 @@ def admin_board(environ, m, conn, user):
 
     if is_manager:
         tickets = conn.execute(
-            """SELECT t.*, d.model, c.name AS customer_name, u.name AS tech_name, sc.name AS center_name
+            """SELECT t.*, d.model, c.customer_id AS customer_id, c.name AS customer_name, u.name AS tech_name, sc.name AS center_name
                FROM Tickets t
                JOIN Devices d ON d.device_sn = t.device_sn
                JOIN Customers c ON c.customer_id = d.customer_id
@@ -2978,7 +3070,7 @@ def admin_board(environ, m, conn, user):
         ).fetchall()
     else:
         tickets = conn.execute(
-            """SELECT t.*, d.model, c.name AS customer_name, u.name AS tech_name, sc.name AS center_name
+            """SELECT t.*, d.model, c.customer_id AS customer_id, c.name AS customer_name, u.name AS tech_name, sc.name AS center_name
                FROM Tickets t
                JOIN Devices d ON d.device_sn = t.device_sn
                JOIN Customers c ON c.customer_id = d.customer_id
@@ -2993,8 +3085,102 @@ def admin_board(environ, m, conn, user):
     board = {s: [] for s in db.STATUSES}
     for t in tickets:
         board[t["status"]].append(t)
+    office_tickets = []
+    history_by_ticket = {}
+    if tickets:
+        ids = [t["ticket_id"] for t in tickets]
+        placeholders = ",".join("?" for _ in ids)
+        history = conn.execute(
+            "SELECT h.*, u.name AS changed_by_name FROM Ticket_Status_History h "
+            "LEFT JOIN Users u ON u.user_id=h.changed_by "
+            "WHERE h.ticket_id IN (" + placeholders + ") ORDER BY h.history_id", tuple(ids)
+        ).fetchall()
+        for entry in history:
+            history_by_ticket.setdefault(entry["ticket_id"], []).append({
+                "status": db.STATUS_LABELS.get(entry["to_status"], entry["to_status"]),
+                "at": str(entry["changed_at"] or ""), "by": entry["changed_by_name"] or "ระบบ",
+                "note": entry["note"] or "",
+            })
+    for ticket in tickets:
+        office_tickets.append({
+            key: ticket[key] for key in (
+                "ticket_id", "status", "assigned_tech_id", "center_id", "customer_id", "model", "customer_name",
+                "tech_name", "center_name", "device_sn", "issue_category", "description",
+                "channel", "booking_date", "booking_time_slot", "created_at", "handover_status", "handover_at",
+            )
+        })
+        # Date objects are normalized before Jinja's JSON serializer.
+        for key in ("booking_date", "created_at"):
+            if office_tickets[-1][key] is not None:
+                office_tickets[-1][key] = str(office_tickets[-1][key])
+        office_tickets[-1]["history"] = history_by_ticket.get(ticket["ticket_id"], [])
     return render("admin_board.html", board=board, techs=techs, user=user,
-                   date_from=from_display, date_to=to_display)
+                  office_tickets=office_tickets,
+                  office_techs=[{"id": t["user_id"], "name": t["name"], "center_id": t["center_id"],
+                                 "active": bool(t["is_active"])} for t in techs],
+                  office_return_url="/admin/board?" + urlencode({"from": from_display, "to": to_display}),
+                  date_from=from_display, date_to=to_display)
+
+
+@route("GET", r"/customer/office")
+def customer_office(environ, m, conn, user):
+    """Read-only map of the latest repair job for each device owned by this customer."""
+    require_login(user, "customer")
+    customer_id = user.get("customer_id")
+    devices = conn.execute(
+        "SELECT device_sn, model, type FROM Devices WHERE customer_id=? ORDER BY model, device_sn",
+        (customer_id,),
+    ).fetchall()
+    tickets = conn.execute(
+        """SELECT t.ticket_id, t.device_sn, t.status, t.issue_category, t.description,
+                  t.center_id, t.channel, t.booking_date, t.booking_time_slot, t.created_at,
+                  t.handover_status, t.handover_at, d.model, sc.name AS center_name
+           FROM Tickets t JOIN Devices d ON d.device_sn=t.device_sn
+           LEFT JOIN Service_Centers sc ON sc.center_id=t.center_id
+           WHERE d.customer_id=? AND NOT EXISTS (
+               SELECT 1 FROM Tickets newer WHERE newer.device_sn=t.device_sn AND
+               (newer.created_at>t.created_at OR (newer.created_at=t.created_at AND newer.ticket_id>t.ticket_id))
+           ) ORDER BY t.created_at DESC, t.ticket_id DESC""",
+        (customer_id,),
+    ).fetchall()
+    history_by_ticket = {}
+    if tickets:
+        ids = [t["ticket_id"] for t in tickets]
+        placeholders = ",".join("?" for _ in ids)
+        history = conn.execute(
+            "SELECT ticket_id, to_status, changed_at FROM Ticket_Status_History "
+            "WHERE ticket_id IN (" + placeholders + ") ORDER BY history_id", tuple(ids)
+        ).fetchall()
+        # Customer payload deliberately excludes internal notes and staff identities.
+        for entry in history:
+            history_by_ticket.setdefault(entry["ticket_id"], []).append({
+                "status": db.STATUS_LABELS.get(entry["to_status"], entry["to_status"]),
+                "at": str(entry["changed_at"] or ""), "by": "", "note": "",
+            })
+    board = {status: [] for status in db.STATUSES}
+    office_tickets = []
+    for ticket in tickets:
+        item = dict(ticket)
+        for key in ("created_at", "booking_date", "handover_at"):
+            if item[key] is not None:
+                item[key] = str(item[key])
+        item.update(customer_id=customer_id, customer_name="เครื่องของคุณ", assigned_tech_id=None,
+                    tech_name="ทีมช่าง", history=history_by_ticket.get(item["ticket_id"], []))
+        office_tickets.append(item)
+        board[item["status"]].append(item)
+    latest_by_device = {t["device_sn"]: t for t in office_tickets}
+    office_devices = []
+    for device in devices:
+        current = latest_by_device.get(device["device_sn"])
+        label = db.STATUS_LABELS[current["status"]] if current else "ยังไม่มีงานซ่อม"
+        if current and current["status"] == "Resolved/Closed":
+            label = {"pending": "รอจัดส่ง / นัดรับ", "shipped": "จัดส่งแล้ว",
+                     "collected": "รับเครื่องแล้ว", "unrecorded": "ซ่อมเสร็จ · ยังไม่ระบุส่งมอบ"}[current["handover_status"]]
+        office_devices.append({"sn": device["device_sn"], "model": device["model"], "label": label,
+                               "has_ticket": bool(current)})
+    return render("admin_board.html", board=board, techs=[], user=user, customer_mode=True,
+                  office_tickets=office_tickets, office_devices=office_devices, office_techs=[],
+                  office_return_url="/customer/office", date_from="", date_to="")
 
 
 def _staff_new_ticket_context(conn, user):
@@ -3216,25 +3402,60 @@ def admin_ticket_update(environ, m, conn, user):
     require_login(user, "admin", "manager", "technician_lead")
     ticket_id = int(m.group(1))
     existing = conn.execute(
-        "SELECT center_id, status, assigned_tech_id FROM Tickets WHERE ticket_id=?", (ticket_id,)
+        "SELECT center_id, status, assigned_tech_id, closed_at, handover_status, handover_at FROM Tickets WHERE ticket_id=?", (ticket_id,)
     ).fetchone()
     if not existing:
         raise HttpError(404, "ไม่พบตั๋วซ่อมนี้")
     require_center_access(user, existing["center_id"])
+    if user["role"] in ("manager", "technician_lead") and (
+            not user.get("center_id") or user["center_id"] != existing["center_id"]):
+        raise HttpError(403, "คุณไม่มีสิทธิ์เปลี่ยนสถานะงานของสาขานี้")
     form = parse_post(environ)
     status = form.get("status")
+    if status not in db.STATUSES:
+        raise HttpError(400, "สถานะงานไม่ถูกต้อง")
     tech_id = form.get("assigned_tech_id") or None
-    closed_at = db.now() if status == "Resolved/Closed" else None
-    if closed_at:
-        conn.execute(
-            "UPDATE Tickets SET status=?, assigned_tech_id=?, closed_at=? WHERE ticket_id=?",
-            (status, tech_id, closed_at, ticket_id),
-        )
-    else:
-        conn.execute(
-            "UPDATE Tickets SET status=?, assigned_tech_id=? WHERE ticket_id=?",
-            (status, tech_id, ticket_id),
-        )
+    if tech_id:
+        if not tech_id.isdigit():
+            raise HttpError(400, "ช่างที่เลือกไม่ถูกต้อง")
+        selected_tech = conn.execute(
+            "SELECT role, is_active, center_id FROM Users WHERE user_id=?", (int(tech_id),)
+        ).fetchone()
+        if not selected_tech or selected_tech["role"] not in ("technician", "technician_lead"):
+            raise HttpError(400, "ไม่พบช่างที่เลือก")
+        unchanged_tech = int(tech_id) == existing["assigned_tech_id"]
+        if not unchanged_tech and (not selected_tech["is_active"] or (
+                existing["center_id"] is not None and selected_tech["center_id"] != existing["center_id"])):
+            raise HttpError(400, "กรุณาเลือกช่างที่เปิดใช้งานและสังกัดสาขาของงานนี้")
+    if "expected_status" in form and (
+            form["expected_status"] != existing["status"] or
+            form.get("expected_tech_id", "") != str(existing["assigned_tech_id"] or "")):
+        raise HttpError(409, "งานนี้มีการอัปเดตแล้ว กรุณากลับไปโหลด Virtual Office ใหม่ก่อนบันทึก")
+    handover_labels = {"unrecorded": "ยังไม่ระบุการส่งมอบ", "pending": "รอจัดส่ง / นัดรับ",
+                       "shipped": "จัดส่งแล้ว", "collected": "ลูกค้ารับที่ร้านแล้ว"}
+    old_handover = existing["handover_status"]
+    handover_status = form.get("handover_status", old_handover)
+    if handover_status not in handover_labels:
+        raise HttpError(400, "สถานะการส่งมอบไม่ถูกต้อง")
+    if status != "Resolved/Closed":
+        if "handover_status" in form and handover_status != "unrecorded":
+            raise HttpError(400, "กรุณาปิดงานซ่อมก่อนบันทึกการส่งมอบ")
+        handover_status = "unrecorded"
+    elif existing["status"] != "Resolved/Closed" and handover_status == "unrecorded":
+        handover_status = "pending"
+    if "expected_handover" in form and form["expected_handover"] != old_handover:
+        raise HttpError(409, "สถานะการส่งมอบเปลี่ยนแล้ว กรุณาโหลด Virtual Office ใหม่")
+    handover_at = (existing["handover_at"] if handover_status == old_handover else db.now()) if handover_status in ("shipped", "collected") else None
+    closed_at = ((existing["closed_at"] or db.now()) if existing["status"] == status
+                 else db.now()) if status == "Resolved/Closed" else None
+    updated = conn.execute(
+        "UPDATE Tickets SET status=?, assigned_tech_id=?, closed_at=?, handover_status=?, handover_at=? WHERE ticket_id=? "
+        "AND status=? AND (assigned_tech_id=? OR (assigned_tech_id IS NULL AND ? IS NULL)) AND handover_status=?",
+        (status, tech_id, closed_at, handover_status, handover_at, ticket_id, existing["status"],
+         existing["assigned_tech_id"], existing["assigned_tech_id"], old_handover),
+    )
+    if updated.rowcount == 0:
+        raise HttpError(409, "มีผู้อื่นอัปเดตงานนี้พร้อมกัน กรุณาโหลด Virtual Office ใหม่")
 
     # บันทึกประวัติ — เฉพาะตอนสถานะเปลี่ยนจริง หรือมอบหมาย/เปลี่ยนช่างใหม่ (กันบันทึกซ้ำเวลากดบันทึกฟอร์มโดยไม่ได้แก้อะไร)
     old_tech_id = existing["assigned_tech_id"]
@@ -3249,8 +3470,17 @@ def admin_ticket_update(environ, m, conn, user):
             note = f"มอบหมายช่าง: {tech_name}" if tech_name else "ยกเลิกการมอบหมายช่าง"
         _log_status_history(conn, ticket_id, existing["status"], status, user["user_id"], note=note)
 
+    if handover_status != old_handover:
+        _log_status_history(conn, ticket_id, status, status, user["user_id"],
+                            note="การส่งมอบ: " + handover_labels[handover_status])
     conn.commit()
-    raise Redirect(form.get("next") or "/admin/board")
+    next_url = form.get("next") or "/admin/board"
+    parsed_next = urlparse(next_url)
+    if (not next_url.startswith("/") or next_url.startswith("//") or
+            parsed_next.netloc or parsed_next.scheme or "\\" in next_url or
+            any(ord(ch) < 32 for ch in next_url)):
+        next_url = "/admin/board"
+    raise Redirect(next_url)
 
 
 @route("POST", r"/admin/ticket/(\d+)/edit")
@@ -3628,6 +3858,76 @@ def _load_part_images_map(conn, skus):
     return out
 
 
+def _warehouse_insights(conn, user, parts, today=None):
+    """Read-only month-end planning. No automatic stock adjustments or purchase orders."""
+    today = today or datetime.date.today()
+    month_start = today.replace(day=1)
+    next_month = (month_start.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+    recent_start = today - datetime.timedelta(days=29)
+    since = min(month_start, recent_start).isoformat() + " 00:00:00"
+    recent = recent_start.isoformat() + " 00:00:00"
+    month_sql = month_start.isoformat() + " 00:00:00"
+    until = today.isoformat() + " 23:59:59"
+    scope = user.get("center_id") if user["role"] != "admin" else None
+    empty = {"products": [], "month": today.strftime("%Y-%m"), "remainingDays": (next_month-today).days,
+             "asOf": today.isoformat(), "bestSellerThreshold": 0}
+    if not parts or (user["role"] != "admin" and not scope):
+        return empty
+    # Aggregate only accessible products and, for managers, their own branch transactions.
+    product_scope = " AND (p.center_id=? OR p.center_id IS NULL)" if scope else ""
+    sale_scope = " AND so.center_id=?" if scope else ""
+    sale_params = (month_sql, recent, since, until) + ((scope, scope) if scope else ())
+    sales = conn.execute(
+        "SELECT si.part_sku AS sku, "
+        "SUM(CASE WHEN so.created_at>=? THEN si.quantity ELSE 0 END) AS sold_month, "
+        "SUM(CASE WHEN so.created_at>=? THEN si.quantity ELSE 0 END) AS sold_recent "
+        "FROM Sale_Items si JOIN Sales_Orders so ON so.order_id=si.order_id "
+        "JOIN Spare_Parts p ON p.part_sku=si.part_sku "
+        "WHERE so.cancelled_at IS NULL AND so.created_at BETWEEN ? AND ? AND si.quantity>0"
+        + product_scope + sale_scope + " GROUP BY si.part_sku", sale_params,
+    ).fetchall()
+    repair_scope = " AND t.center_id=?" if scope else ""
+    repair = conn.execute(
+        "SELECT sl.part_sku_used AS sku, SUM(sl.quantity_used) AS used_recent FROM Service_Logs sl "
+        "JOIN Tickets t ON t.ticket_id=sl.ticket_id JOIN Spare_Parts p ON p.part_sku=sl.part_sku_used "
+        "WHERE sl.approval_status IN ('auto','approved') AND sl.quantity_used>0 "
+        "AND sl.created_at BETWEEN ? AND ?" + product_scope + repair_scope + " GROUP BY sl.part_sku_used",
+        (recent, until) + ((scope, scope) if scope else ()),
+    ).fetchall()
+    incoming_scope = " AND ro.center_id=?" if scope else ""
+    incoming = conn.execute(
+        "SELECT ri.part_sku AS sku, SUM(CASE WHEN ri.quantity_requested>COALESCE(ri.quantity_received,0) "
+        "THEN ri.quantity_requested-COALESCE(ri.quantity_received,0) ELSE 0 END) AS incoming "
+        "FROM Restock_Order_Items ri JOIN Restock_Orders ro ON ro.order_id=ri.order_id "
+        "JOIN Spare_Parts p ON p.part_sku=ri.part_sku "
+        "WHERE ro.status IN ('processing','shipped')" + product_scope + incoming_scope + " GROUP BY ri.part_sku",
+        (scope, scope) if scope else (),
+    ).fetchall()
+    sales_by_sku = {row["sku"]: row for row in sales}
+    usage_by_sku = {row["sku"]: int(row["used_recent"] or 0) for row in repair}
+    incoming_by_sku = {row["sku"]: int(row["incoming"] or 0) for row in incoming}
+    positive_sales = sorted((int(row["sold_month"] or 0) for row in sales if row["sold_month"]), reverse=True)
+    top_count = max(1, (len(positive_sales)+4)//5)
+    cutoff = positive_sales[top_count-1] if positive_sales else 0
+    products = []
+    remaining = (next_month-today).days
+    for part in parts:
+        sku = part["part_sku"]
+        sale = sales_by_sku.get(sku, {})
+        sold_month = int(sale.get("sold_month", 0) or 0)
+        used = int(sale.get("sold_recent", 0) or 0) + usage_by_sku.get(sku, 0)
+        projected = (used*remaining + 29)//30
+        stock = int(part["stock_quantity"] or 0)
+        reorder = int(part["reorder_level"] or 0)
+        suggested = max(0, reorder + max(1, projected) - stock)
+        products.append({"sku": sku, "name": part["part_name"], "location": part["storage_location"] or "ยังไม่ระบุชั้น",
+                         "category": part["category"], "stock": stock, "reorder": reorder,
+                         "soldMonth": sold_month, "used30": used, "forecast": projected,
+                         "suggested": suggested, "incoming": incoming_by_sku.get(sku, 0),
+                         "low": stock<=reorder, "bestSeller": bool(cutoff and sold_month>=cutoff)})
+    return dict(empty, products=products, bestSellerThreshold=cutoff)
+
+
 def _inventory_ctx(conn, user, q=""):
     """context กลางสำหรับ render admin_inventory.html — ใช้ร่วมกันทุก route เพื่อไม่ต้องพิมพ์ซ้ำ
     ถ้าเป็น manager จะกรองสินค้า+ตัวเลือกศูนย์บริการให้เห็นเฉพาะศูนย์ตัวเองเท่านั้น"""
@@ -3640,7 +3940,7 @@ def _inventory_ctx(conn, user, q=""):
                 "threshold": db.HIGH_COST_APPROVAL_THRESHOLD, "max_image_mb": MAX_PART_IMAGE_MB,
                 "max_images": MAX_PART_IMAGES,
                 "categories": PRODUCT_CATEGORIES, "category_labels": PRODUCT_CATEGORY_LABELS,
-                "category_icons": PRODUCT_CATEGORY_ICONS, "parts_for_js": [], "shelves": []}
+                "category_icons": PRODUCT_CATEGORY_ICONS, "parts_for_js": [], "shelves": [], "warehouse_data": _warehouse_insights(conn, user, [])}
 
     centers_all = conn.execute("SELECT * FROM Service_Centers ORDER BY name").fetchall()
     centers = [c for c in centers_all if c["center_id"] == scope_center] if is_manager else centers_all
@@ -3688,6 +3988,7 @@ def _inventory_ctx(conn, user, q=""):
         "category_icons": PRODUCT_CATEGORY_ICONS,
         "parts_for_js": parts_for_js,
         "shelves": shelves,
+        "warehouse_data": _warehouse_insights(conn, user, parts),
     }
 
 
@@ -3697,6 +3998,19 @@ def admin_inventory(environ, m, conn, user):
     qs = parse_qs(environ.get("QUERY_STRING", ""))
     q = qs.get("q", [""])[0].strip()
     return render("admin_inventory.html", user=user, error=None, **_inventory_ctx(conn, user, q))
+
+
+@route("GET", r"/staff/warehouse")
+def staff_warehouse(environ, m, conn, user):
+    """Operational stock room: branch-scoped, read-only, no cost prices or edit forms."""
+    require_login(user, "admin", "manager", "technician_lead", "technician", "sales")
+    if user["role"] != "admin" and not user.get("center_id"):
+        parts = []
+    else:
+        parts = _load_parts(conn, center_id=user.get("center_id") if user["role"] != "admin" else None)
+    warehouse_data = _warehouse_insights(conn, user, parts)
+    warehouse_data["readOnly"] = True
+    return render("staff_warehouse.html", user=user, warehouse_data=warehouse_data)
 
 
 @route("POST", r"/admin/inventory/(.+)/restock")
@@ -3716,6 +4030,7 @@ def admin_inventory_restock(environ, m, conn, user):
 
 def save_part_image(sku, file_info):
     """ตรวจสอบและบันทึกรูปอะไหล่ 1 ไฟล์ คืนชื่อไฟล์ที่บันทึกจริง หรือ None ถ้าไม่ได้แนบไฟล์มา"""
+    validate_upload(file_info)
     if not file_info or not file_info.get("filename"):
         return None
     if not file_info["content_type"].startswith("image/"):
@@ -7800,22 +8115,7 @@ def serve_media(path, conn, user, start_response):
         return [b"not found"]
     ticket_id, filename = int(match.group(1)), match.group(2)
 
-    row = conn.execute(
-        """SELECT t.ticket_id, t.assigned_tech_id, d.customer_id FROM Tickets t
-           JOIN Devices d ON d.device_sn = t.device_sn WHERE t.ticket_id=?""",
-        (ticket_id,),
-    ).fetchone()
-
-    allowed = False
-    if row and user:
-        if user["role"] in ("admin", "manager", "technician_lead"):
-            allowed = True
-        elif user["role"] == "technician" and row["assigned_tech_id"] == user["user_id"]:
-            allowed = True
-        elif user["role"] == "customer" and row["customer_id"] == user["customer_id"]:
-            allowed = True
-
-    if not row or not allowed:
+    if not user_can_view_ticket(conn, user, ticket_id):
         start_response("403 Forbidden", [("Content-Type", "text/html; charset=utf-8")])
         return ["<h1>403</h1><p>ไม่มีสิทธิ์เข้าถึงไฟล์นี้</p>".encode("utf-8")]
 
@@ -7828,8 +8128,7 @@ def serve_media(path, conn, user, start_response):
     ctype, _ = mimetypes.guess_type(fs_path)
     with open(fs_path, "rb") as f:
         data = f.read()
-    start_response("200 OK", [("Content-Type", ctype or "application/octet-stream"),
-                               ("Content-Length", str(len(data)))])
+    start_response("200 OK", _upload_headers(ctype, len(data)))
     return [data]
 
 
@@ -7869,8 +8168,7 @@ def serve_device_proof(path, conn, user, start_response):
     ctype, _ = mimetypes.guess_type(fs_path)
     with open(fs_path, "rb") as f:
         data = f.read()
-    start_response("200 OK", [("Content-Type", ctype or "application/octet-stream"),
-                               ("Content-Length", str(len(data)))])
+    start_response("200 OK", _upload_headers(ctype, len(data)))
     return [data]
 
 
@@ -7887,26 +8185,30 @@ def serve_part_image(path, user, start_response):
     ctype, _ = mimetypes.guess_type(fs_path)
     with open(fs_path, "rb") as f:
         data = f.read()
-    start_response("200 OK", [("Content-Type", ctype or "application/octet-stream"),
-                               ("Content-Length", str(len(data)))])
+    start_response("200 OK", _upload_headers(ctype, len(data)))
     return [data]
 
 
-def serve_center_logo(path, start_response):
+def serve_center_logo(path, conn, start_response):
     """เสิร์ฟโลโก้ศูนย์บริการ — ไม่บังคับ login เพราะแสดงบนหน้าแรกสาธารณะ (home.html) ด้วย"""
-    filename = path.replace("/center-logo/", "", 1)
-    center_dir = os.path.abspath(CENTER_FILES_DIR)
-    fs_path = os.path.join(center_dir, filename)
-    # filename มาจาก path จริง เช่น "3/logo_xxxx.png" (center_id/ชื่อไฟล์) — startswith กัน path traversal
-    if not os.path.abspath(fs_path).startswith(center_dir) or not os.path.isfile(fs_path):
+    match = re.fullmatch(r"/center-logo/(\d+)/([^/]+)", path)
+    row = None
+    if match:
+        row = conn.execute("SELECT logo_filename FROM Service_Centers WHERE center_id=?",
+                           (int(match.group(1)),)).fetchone()
+    if not row or not row["logo_filename"] or row["logo_filename"] != match.group(2):
+        start_response("404 Not Found", [("Content-Type", "text/plain")])
+        return [b"not found"]
+    center_dir = os.path.realpath(os.path.join(CENTER_FILES_DIR, match.group(1)))
+    fs_path = os.path.realpath(os.path.join(center_dir, match.group(2)))
+    if os.path.commonpath([center_dir, fs_path]) != center_dir or not os.path.isfile(fs_path):
         start_response("404 Not Found", [("Content-Type", "text/plain")])
         return [b"not found"]
 
     ctype, _ = mimetypes.guess_type(fs_path)
     with open(fs_path, "rb") as f:
         data = f.read()
-    start_response("200 OK", [("Content-Type", ctype or "application/octet-stream"),
-                               ("Content-Length", str(len(data)))])
+    start_response("200 OK", _upload_headers(ctype, len(data)))
     return [data]
 
 
@@ -7927,8 +8229,7 @@ def serve_center_doc(path, user, start_response):
     ctype, _ = mimetypes.guess_type(fs_path)
     with open(fs_path, "rb") as f:
         data = f.read()
-    start_response("200 OK", [("Content-Type", ctype or "application/octet-stream"),
-                               ("Content-Length", str(len(data)))])
+    start_response("200 OK", _upload_headers(ctype, len(data)))
     return [data]
 
 
@@ -7949,8 +8250,7 @@ def serve_marketing_file(path, user, start_response):
     ctype, _ = mimetypes.guess_type(fs_path)
     with open(fs_path, "rb") as f:
         data = f.read()
-    start_response("200 OK", [("Content-Type", ctype or "application/octet-stream"),
-                               ("Content-Length", str(len(data)))])
+    start_response("200 OK", _upload_headers(ctype, len(data)))
     return [data]
 
 
@@ -8079,7 +8379,7 @@ def _extract_csrf_token(environ, raw_body):
         fake_environ = dict(environ)
         fake_environ["wsgi.input"] = io.BytesIO(raw_body)
         fake_environ["CONTENT_LENGTH"] = str(len(raw_body))
-        fields, _files = parse_multipart(fake_environ)
+        fields, _files = parse_multipart(fake_environ, validate_files=False)
         return fields.get("csrf_token")
     try:
         fields = {k: v[0] for k, v in parse_qs(raw_body.decode("utf-8")).items()}
@@ -8107,8 +8407,24 @@ def application(environ, start_response):
         pass  # path ไม่ใช่ UTF-8 ที่ถูกต้อง (พบยาก) — ปล่อยผ่านตามเดิมแทนที่จะทำให้ request พัง
     method = environ.get("REQUEST_METHOD", "GET")
 
+    if method == "POST":
+        try:
+            length = int(environ.get("CONTENT_LENGTH", 0) or 0)
+        except ValueError:
+            length = -1
+        if length < 0 or length > MAX_REQUEST_BYTES:
+            status = "413 Payload Too Large" if length > MAX_REQUEST_BYTES else "400 Bad Request"
+            start_response(status, [("Content-Type", "text/plain; charset=utf-8")])
+            return [b"Invalid or oversized request body"]
+
     if path.startswith("/static/"):
         return serve_static(path, environ, start_response)
+
+    if path == "/api/v1" or path.startswith("/api/v1/"):
+        # API เชื่อมต่อระบบภายนอกแบบอ่านอย่างเดียว (TDPrintSpace) — แยกจากระบบ session/cookie/CSRF ของเว็บทั้งหมด
+        # ยืนยันตัวตนด้วย bearer token เท่านั้น (ดู integration_api.py และ docs/office-api.md)
+        return integration_api.handle(environ, start_response, get_conn=db.get_conn,
+                                    status_labels={s: db.STATUS_LABELS[s] for s in db.STATUSES})
 
     conn = db.get_conn()
     try:
@@ -8129,7 +8445,7 @@ def application(environ, start_response):
             return serve_device_proof(path, conn, user, start_response)
 
         if path.startswith("/center-logo/") and method == "GET":
-            return serve_center_logo(path, start_response)
+            return serve_center_logo(path, conn, start_response)
 
         if path.startswith("/center-doc/") and method == "GET":
             return serve_center_doc(path, user, start_response)
@@ -8187,7 +8503,7 @@ def application(environ, start_response):
                     return [b""]
                 except HttpError as e:
                     start_response(f"{e.status} Error", [("Content-Type", "text/html; charset=utf-8")])
-                    return [f"<h1>{e.status}</h1><p>{e.message}</p><a href='/'>กลับหน้าแรก</a>".encode("utf-8")]
+                    return [f"<h1>{e.status}</h1><p>{html.escape(str(e.message))}</p><a href='/'>กลับหน้าแรก</a>".encode("utf-8")]
                 start_response("200 OK", [("Content-Type", "text/html; charset=utf-8")])
                 return [body]
         start_response("404 Not Found", [("Content-Type", "text/html; charset=utf-8")])
@@ -8207,7 +8523,10 @@ class QuietWSGIRequestHandler(WSGIRequestHandler):
     """Log to stdout in a container-friendly single-line format."""
 
     def log_message(self, fmt, *args):
-        print("[%s] %s" % (self.address_string(), fmt % args))
+        message = fmt % args
+        # ไม่บันทึก query string ของ /api/ ลง log (กัน token/ค่าลับที่ผู้เรียกพลาดใส่มาใน URL หลุดเข้า log)
+        message = re.sub(r"(/api/v1[^\s?\"]*)\?[^\s\"]*", r"\1?[redacted]", message)
+        print("[%s] %s" % (self.address_string(), message))
 
 
 def _wait_for_db(max_attempts=30, delay_seconds=2):

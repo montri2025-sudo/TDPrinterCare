@@ -1,0 +1,29 @@
+<section class="command-center" aria-labelledby="command-title">
+  <div class="command-room-heading"><div><h2 id="command-title">OPERATIONS MONITOR ROOM</h2><p>คลิกจอมอนิเตอร์เพื่อขยายกราฟและดูตัวเลข</p></div><span class="monitor-snapshot">ข้อมูล ณ เวลาเปิดหน้า · ไม่อัปเดตอัตโนมัติ</span></div>
+  <div class="command-room">
+    <div class="monitor-wall" aria-label="จอมอนิเตอร์แสดงภาพรวม 6 มุมมอง">
+    {% for key, label, eyebrow, period in [
+      ('jobs', 'งานเข้าเทียบงานปิด', 'SERVICE FLOW', 'แนวโน้มรายเดือน'),
+      ('status', 'สัดส่วนสถานะงาน', 'WORKFLOW HEALTH', 'ช่วงวันที่ที่เลือก'),
+      ('workload', 'ภาระงานของทีมช่าง', 'TEAM CAPACITY', 'งานค้างปัจจุบัน'),
+      ('revenue', 'ยอดขายแยกกลุ่มสินค้า', 'BUSINESS PERFORMANCE', 'แนวโน้มรายเดือน · บาท'),
+      ('repair', 'ประสิทธิภาพงานซ่อม', 'SERVICE PERFORMANCE', 'ช่วงวันที่ที่เลือก'),
+      ('attention', 'รายการที่ต้องติดตาม', 'ACTION CENTER', 'งานไม่มอบหมายตามช่วงวัน · รายการอื่นปัจจุบัน')
+    ] %}
+      <button type="button" class="monitor-screen screen-{{ key }}" data-monitor="{{ key }}" aria-label="ขยายจอ {{ label }}">
+        <span class="screen-header"><span><small>{{ eyebrow }}</small><strong>{{ label }}</strong></span><i aria-hidden="true">↗</i></span>
+        <span class="monitor-chart" id="monitor-chart-{{ key }}"></span>
+        <span class="screen-footer"><i></i>{{ period }}<b>0{{ loop.index }}</b></span>
+      </button>
+    {% endfor %}
+    </div>
+    <div class="monitor-room-floor" aria-hidden="true"><span class="monitor-floor-caption">STRATEGY • INSIGHT • ACTION</span></div>
+    <p class="monitor-illustration-note">ภาพผู้บริหารเป็นภาพประกอบ ไม่ใช่ผู้ใช้งานออนไลน์</p>
+  </div>
+  <div class="monitor-room-foot"><span>ขอบเขตข้อมูล: {{ scope_label }}</span><span>สถานะ/ประสิทธิภาพ: {{ date_from }} — {{ date_to }} · ภาระงานช่าง: ปัจจุบัน</span></div>
+</section>
+<dialog class="monitor-dialog" id="monitor-dialog" aria-labelledby="monitor-detail-title">
+  <header><div><span>MONITOR DETAIL</span><h2 id="monitor-detail-title"></h2></div><button type="button" id="monitor-close" aria-label="ปิดจอมอนิเตอร์">✕</button></header>
+  <p id="monitor-detail-context"></p><div id="monitor-detail-chart"></div><div class="monitor-data-table"><table id="monitor-detail-table"></table></div>
+</dialog>
+<script type="application/json" id="monitor-room-data">{{ monitor_data|tojson }}</script>

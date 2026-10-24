@@ -1,14 +1,17 @@
 {% extends "base.html" %}
 {% import "_gauge_macros.html" as gauges %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}ห้องมอนิเตอร์ · Dashboard{% endblock %}
+{% block body_class %}office-mode monitor-mode{% endblock %}
 {% block extra_head %}
+<link rel="stylesheet" href="/static/virtual-office-scene.css?v={{ asset_v('virtual-office-scene.css') }}">
+<link rel="stylesheet" href="/static/monitor-room.css?v={{ asset_v('monitor-room.css') }}">
+<script src="/static/monitor-room.js?v={{ asset_v('monitor-room.js') }}" defer></script>
 {% if centers_with_geo or customers_with_geo %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 {% endif %}
 {% endblock %}
 {% block content %}
-<h1>📊 Dashboard สรุปภาพรวม</h1>
-<p class="hint" style="font-size:15px; margin-top:-6px;">🏢 ศูนย์บริการ: <b>{{ scope_label }}</b></p>
+<header class="monitor-heading"><div><span>EXECUTIVE OPERATIONS CENTER</span><h1>ห้องมอนิเตอร์<span>.</span></h1><p>ภาพรวมการทำงานทุกมุมมอง · {{ scope_label }}</p></div><a class="btn" href="/admin/board">เข้าสู่ Virtual Office ↗</a></header>
 
 <div class="card">
   <form method="get" action="/admin/dashboard" id="dashFilterForm" style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
@@ -48,6 +51,8 @@
   }
 </script>
 
+{% include "_monitor_room.html" %}
+<details class="monitor-reports" id="monitor-reports"><summary>รายงานและเครื่องมือวิเคราะห์เพิ่มเติม <span>กราฟเดิม · ตาราง · คิวงาน · แผนที่</span></summary>
 <h2>📈 แนวโน้มรายเดือน (ย้อนหลัง {{ dash_chart_labels|length }} เดือน)</h2>
 <div class="card">
   <canvas id="dashTrendChart" style="max-height:340px;"></canvas>
@@ -310,7 +315,7 @@
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
         data.map(function (r) {
           return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
-            r.customer_name + '</td><td>' + r.model + '</td><td>' +
+            escapeHtmlText(r.customer_name) + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' +
             (DASH_STATUS_ICONS[r.status] || '') + ' ' + r.status_label + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     }
@@ -465,4 +470,5 @@
   else { map.fitBounds(bounds, { padding: [30, 30] }); }
 </script>
 {% endif %}
+</details>
 {% endblock %}

@@ -1,40 +1,27 @@
 {% extends "base.html" %}
-{% block title %}คลังสินค้า{% endblock %}
+{% block title %}Virtual Warehouse · คลังสินค้า{% endblock %}
+{% block body_class %}office-mode warehouse-mode{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/virtual-office-scene.css?v={{ asset_v('virtual-office-scene.css') }}">
+<link rel="stylesheet" href="/static/virtual-warehouse.css?v={{ asset_v('virtual-warehouse.css') }}">
+<script src="/static/virtual-warehouse.js?v={{ asset_v('virtual-warehouse.js') }}" defer></script>
+{% endblock %}
 {% block content %}
-<h1>📦 คลังสินค้า</h1>
+<header class="warehouse-heading"><div><span>INVENTORY OPERATIONS</span><h1>Virtual Warehouse<span>.</span></h1><p>ชั้นวางสินค้า · สถานะสต็อก · วางแผนสั่งซื้อเดือนนี้</p></div><a class="btn secondary" href="#warehouse-tools">จัดการสินค้า / เติมสต็อก ↗</a></header>
 {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
 <p class="hint">สินค้าที่มูลค่าการเบิกต่อครั้งเกิน {{ threshold }} บาท ต้องรอผู้จัดการอนุมัติก่อนตัดสต็อก · แนบรูปได้สูงสุด {{ max_images }} รูปต่อชิ้น (ไฟล์ละไม่เกิน {{ max_image_mb }} MB)</p>
 
 <div class="card">
   <form method="get" action="/admin/inventory" style="display:flex; gap:8px; align-items:flex-end;">
-    <div style="flex:1;"><label>ค้นหา (SKU / ชื่อสินค้า / รุ่นที่ใช้ร่วมกันได้)</label><input type="text" name="q" value="{{ q or '' }}" placeholder="เช่น NZ-04, หัวฉีด, Kobra 2" data-search-for="inventory-table" autocomplete="off"></div>
+    <div style="flex:1;"><label>ค้นหา (SKU / ชื่อสินค้า / รุ่นที่ใช้ร่วมกันได้)</label><input type="text" name="q" id="warehouse-search" value="{{ q or '' }}" placeholder="เช่น NZ-04, หัวฉีด, Kobra 2" data-search-for="inventory-table" autocomplete="off"></div>
     <button class="btn" type="submit">ค้นหา</button>
     {% if q %}<a href="/admin/inventory" class="btn secondary">ล้างการค้นหา</a>{% endif %}
   </form>
   <p class="hint" style="margin-top:8px;">พิมพ์เพื่อกรองรายการทันที — ไม่ต้องกดปุ่ม "ค้นหา"</p>
 </div>
 
-{% if shelves %}
-<div class="card">
-  <h2>🗄️ ผังชั้นวางสินค้า</h2>
-  <div class="shelf-visual">
-    <div class="shelf-box shelf-all active" id="shelfBoxAll" onclick="clearShelfFilter()">
-      <div class="shelf-icon">📋</div>
-      <div class="shelf-label">ทั้งหมด</div>
-      <div class="shelf-count">{{ parts|length }} รายการ</div>
-    </div>
-    {% for s in shelves %}
-    <div class="shelf-box" id="shelfBox-{{ loop.index }}" onclick="filterByShelf({{ s.location|tojson }}, this)">
-      <div class="shelf-icon">🗃️</div>
-      <div class="shelf-label">{{ s.location }}</div>
-      <div class="shelf-count">{{ s.count }} รายการ</div>
-    </div>
-    {% endfor %}
-  </div>
-  <p class="hint" style="margin-top:8px;">คลิกที่ชั้นวางเพื่อกรองรายการสินค้าด้านล่างให้แสดงเฉพาะชั้นนั้น — คลิก "ทั้งหมด" เพื่อล้างการกรอง</p>
-</div>
-{% endif %}
-
+{% include "_virtual_warehouse.html" %}
+<div id="warehouse-tools">
 <div class="card">
   <h2>+ เพิ่มสินค้าใหม่</h2>
   <form method="post" action="/admin/inventory/new" enctype="multipart/form-data">
@@ -353,4 +340,5 @@
     if (sku) toggleEdit(sku);
   }
 </script>
+</div>
 {% endblock %}

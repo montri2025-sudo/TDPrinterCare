@@ -177,9 +177,14 @@
       var row = document.createElement('div');
       row.className = 'picker-row';
       row.onclick = function () { selectCustomer(c.id); };
-      row.innerHTML =
-        '<span class="picker-name">' + c.name + '</span>' +
-        '<span class="picker-meta">' + (c.phone || '-') + '</span>';
+      var nameLabel = document.createElement('span');
+      nameLabel.className = 'picker-name';
+      nameLabel.textContent = c.name;
+      var phoneLabel = document.createElement('span');
+      phoneLabel.className = 'picker-meta';
+      phoneLabel.textContent = c.phone || '-';
+      row.appendChild(nameLabel);
+      row.appendChild(phoneLabel);
       container.appendChild(row);
     });
   }

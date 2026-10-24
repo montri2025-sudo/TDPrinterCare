@@ -34,7 +34,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # App source
-COPY app.py db.py odoo_client.py schema.sql ./
+COPY app.py db.py odoo_client.py integration_api.py schema.sql ./
 COPY templates ./templates
 COPY static ./static
 

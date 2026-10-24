@@ -174,6 +174,8 @@ CREATE TABLE IF NOT EXISTS Tickets (
     assigned_tech_id INT,
     created_at       TEXT NOT NULL,
     closed_at        TEXT,
+    handover_status  VARCHAR(20) NOT NULL DEFAULT 'unrecorded',
+    handover_at      TEXT,
     csat_score       INT,
     csat_comment     TEXT,
     invoice_recorded    SMALLINT NOT NULL DEFAULT 0,  -- ลงบันทึกใบแจ้งหนี้นี้ในบัญชี/ระบบภายนอกแล้วหรือยัง (ติ๊กจากหน้ารายงาน)
@@ -188,6 +190,7 @@ CREATE TABLE IF NOT EXISTS Tickets (
     FOREIGN KEY (center_id) REFERENCES Service_Centers(center_id),
     FOREIGN KEY (invoice_recorded_by) REFERENCES Users(user_id),
     CONSTRAINT chk_tickets_status CHECK (status IN ('New','Diagnosing','Waiting for Parts','In Repair','Testing','Resolved/Closed')),
+    CONSTRAINT chk_tickets_handover CHECK (handover_status IN ('unrecorded','pending','shipped','collected')),
     CONSTRAINT chk_tickets_channel CHECK (channel IN ('online_report','booking'))
 );
 

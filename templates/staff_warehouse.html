@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}ห้องคลังสินค้า · จอพนักงาน{% endblock %}
+{% block body_class %}office-mode warehouse-mode{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/virtual-office-scene.css?v={{ asset_v('virtual-office-scene.css') }}"><link rel="stylesheet" href="/static/virtual-warehouse.css?v={{ asset_v('virtual-warehouse.css') }}"><script src="/static/virtual-warehouse.js?v={{ asset_v('virtual-warehouse.js') }}" defer></script>{% endblock %}
+{% block content %}
+<header class="warehouse-heading"><div><span>TEAM STOCK CONTROL ROOM</span><h1>ห้องคลังสินค้า<span>.</span></h1><p>จอสรุปสำหรับพนักงาน · ดูได้อย่างเดียว · {% if user.role == 'admin' %}ทุกสาขา{% else %}เฉพาะสาขาที่สังกัดและสินค้าคลังกลาง{% endif %}</p></div></header>
+<div class="card"><label for="warehouse-search">ค้นหาสินค้า / SKU / ชั้นวาง</label><input id="warehouse-search" type="search" placeholder="ค้นหาบนชั้นวางและจอสรุป"></div>
+{% include "_virtual_warehouse.html" %}
+{% endblock %}

@@ -38,8 +38,8 @@ PG_PASSWORD = os.environ.get("PG_PASSWORD", "tdprinter_pw")
 PG_DATABASE = os.environ.get("PG_DATABASE", "tdprinter_care")
 
 # ตั้งเป็น "0" เพื่อปิดการใส่ข้อมูลตัวอย่าง/บัญชีทดสอบ (admin1/admin123 ฯลฯ) ตอน deploy จริง —
-# ค่าเริ่มต้นเป็น "1" เพื่อความสะดวกตอน dev/demo เท่านั้น
-SEED_DEMO_DATA = os.environ.get("SEED_DEMO_DATA", "1") != "0"
+# ค่าเริ่มต้นเป็น "0"; เปิดเป็น "1" โดยชัดแจ้งเฉพาะ dev/demo เท่านั้น
+SEED_DEMO_DATA = os.environ.get("SEED_DEMO_DATA", "0") == "1"
 
 # ใช้สร้างบัญชีแอดมินคนแรกอัตโนมัติเมื่อปิด SEED_DEMO_DATA ไว้ (ฐานข้อมูลว่างแต่ไม่อยากได้บัญชีทดสอบ) —
 # ถ้าไม่ตั้งค่าไว้ จะไม่มีบัญชีใดๆ เลยและต้อง insert บัญชีแรกเข้า Users เองผ่าน SQL
@@ -239,6 +239,12 @@ class _Conn:
         cur.execute(sql.replace("?", "%s"), params)
         return cur
 
+    def begin_read_only_snapshot(self):
+        """เริ่มธุรกรรมแบบอ่านอย่างเดียว (READ ONLY) + REPEATABLE READ — ทุกคำสั่ง SELECT หลังจากนี้เห็นข้อมูล
+        ชุดเดียวกัน ณ จุดเวลาเดียว และฐานข้อมูลจะปฏิเสธคำสั่งเขียนทุกชนิดในธุรกรรมนี้ ใช้โดย integration_api.py
+        (ต้องเรียกก่อนคำสั่งแรกของการเชื่อมต่อนั้นเสมอ)"""
+        self._raw.set_session(isolation_level="REPEATABLE READ", readonly=True, autocommit=False)
+
     def executescript(self, script: str):
         cur = self._raw.cursor()
         for stmt in script.split(";"):
@@ -381,6 +387,7 @@ def _column_exists(conn, table, column):
 # เพื่อให้ schema.sql เป็น single source of truth เสมอ แทนวิธีเดิมของ MySQL ที่ต้อง track การขยาย
 # ค่า ENUM ทีละคอลัมน์ด้วย _enum_has_value()
 _CHECK_CONSTRAINTS = [
+    ("Tickets", "chk_tickets_handover", "handover_status IN ('unrecorded','pending','shipped','collected')"),
     ("Users", "chk_users_role",
      "role IN ('customer','admin','technician','technician_lead','manager','sales')"),
     ("Users", "chk_users_auth_provider",
@@ -443,6 +450,13 @@ def _migrate_schema(conn: _Conn):
     schema.sql เวอร์ชันล่าสุด — CREATE TABLE IF NOT EXISTS ด้านบนจะไม่เพิ่มคอลัมน์ใหม่ให้ตาราง
     ที่มีอยู่แล้ว จึงต้องมี ALTER TABLE เสริมตรงนี้ทุกครั้งที่เพิ่มคอลัมน์ใหม่ในอนาคต (idempotent
     ตรวจสอบก่อนว่ามีคอลัมน์อยู่แล้วหรือยัง กันรันซ้ำพัง)"""
+    if not _column_exists(conn, "Tickets", "handover_status"):
+        conn.execute("ALTER TABLE Tickets ADD COLUMN handover_status VARCHAR(20) NOT NULL DEFAULT 'unrecorded'")
+        conn.commit()
+    if not _column_exists(conn, "Tickets", "handover_at"):
+        conn.execute("ALTER TABLE Tickets ADD COLUMN handover_at TEXT")
+        conn.commit()
+
     if not _column_exists(conn, "Quotation_Items", "tech_notes"):
         print("[init_db] migrate: เพิ่มคอลัมน์ Quotation_Items.tech_notes")
         conn.execute("ALTER TABLE Quotation_Items ADD COLUMN tech_notes TEXT")

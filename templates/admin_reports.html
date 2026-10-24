@@ -152,33 +152,33 @@
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
         data.map(function (r) {
           return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
-            r.customer_name + '</td><td>' + r.model + '</td><td>' + r.status_label + '</td><td>' + r.date + '</td></tr>';
+            escapeHtmlText(r.customer_name) + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' + r.status_label + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     } else if (kind === 'closed') {
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ลูกค้า</th><th>รุ่นเครื่อง</th><th>วันที่ปิดงาน</th></tr>' +
         data.map(function (r) {
           return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
-            r.customer_name + '</td><td>' + r.model + '</td><td>' + r.date + '</td></tr>';
+            escapeHtmlText(r.customer_name) + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     } else if (kind === 'labor') {
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>ช่าง</th><th>รุ่นเครื่อง</th><th>รายการ</th><th>ค่าแรง (บาท)</th><th>วันที่</th></tr>' +
         data.map(function (r) {
           return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
-            r.tech_name + '</td><td>' + r.model + '</td><td>' + r.action + '</td><td>' +
+            escapeHtmlText(r.tech_name) + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' + escapeHtmlText(r.action) + '</td><td>' +
             fmtReportBaht(r.fee) + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     } else if (kind === 'parts') {
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>SKU</th><th>ชื่ออะไหล่</th><th>รุ่นเครื่อง</th><th>จำนวน</th><th>มูลค่า (บาท)</th><th>วันที่</th></tr>' +
         data.map(function (r) {
           return '<tr><td><a href="/admin/ticket/' + r.ticket_id + '">#' + r.ticket_id + '</a></td><td>' +
-            r.part_sku + '</td><td>' + r.part_name + '</td><td>' + r.model + '</td><td>' + r.qty + '</td><td>' +
+            escapeHtmlText(r.part_sku) + '</td><td>' + escapeHtmlText(r.part_name) + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' + r.qty + '</td><td>' +
             fmtReportBaht(r.cost) + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     } else if (kind === 'sales') {
       body.innerHTML = '<table class="sortable"><tr><th>บิล</th><th>พนักงานขาย</th><th>สินค้า</th><th>จำนวน</th><th>ยอดขาย (บาท)</th><th>ค่าคอม (บาท)</th><th>วันที่</th></tr>' +
         data.map(function (r) {
           return '<tr><td><a href="/sales/order/' + r.order_id + '">#' + r.order_id + '</a></td><td>' +
-            r.sold_by + '</td><td>' + r.part_name + '</td><td>' + r.qty + '</td><td>' +
+            r.sold_by + '</td><td>' + escapeHtmlText(r.part_name) + '</td><td>' + r.qty + '</td><td>' +
             fmtReportBaht(r.revenue) + '</td><td>' + fmtReportBaht(r.commission) + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     }
@@ -260,7 +260,7 @@
       ? r.status_history.map(function (h) {
           return '<div class="history-item"><div class="history-dot"></div><div>' +
             '<div class="history-title">' + (h.from_label ? h.from_label + ' → ' : '') + h.to_label + '</div>' +
-            (h.note ? '<div class="history-sub">' + h.note + '</div>' : '') +
+            (h.note ? '<div class="history-sub">' + escapeHtmlText(h.note) + '</div>' : '') +
             '</div><div class="history-time">' + h.changed_at + '</div></div>';
         }).join('')
       : '<p class="hint">ยังไม่มีประวัติการเปลี่ยนสถานะ</p>';
@@ -268,19 +268,19 @@
     document.getElementById('trBody').innerHTML =
       '<div class="ticket-hero" style="margin-bottom:16px;">' +
         '<div class="ticket-hero-id">ใบงาน #' + r.ticket_id + '</div>' +
-        '<div class="ticket-hero-title">' + r.model + '</div>' +
+        '<div class="ticket-hero-title">' + escapeHtmlText(r.model) + '</div>' +
         '<span class="ticket-hero-badge">' + r.status_icon + ' ' + r.status_label + '</span>' +
         '<p class="ticket-hero-next">ขั้นตอนถัดไป: ' + (TR_NEXT_STEP_HINTS[r.status] || '-') + '</p>' +
       '</div>' +
       '<div class="ticket-stepper">' + stepperHtml + '</div>' +
       '<div class="ticket-info-grid">' +
-        '<div class="ticket-info-box"><div class="label">ลูกค้า</div><div class="value">' + r.customer_name + ' · ' + r.customer_phone + '</div></div>' +
-        '<div class="ticket-info-box"><div class="label">ช่างผู้ดูแล</div><div class="value">' + r.tech_name + '</div></div>' +
+        '<div class="ticket-info-box"><div class="label">ลูกค้า</div><div class="value">' + escapeHtmlText(r.customer_name) + ' · ' + escapeHtmlText(r.customer_phone) + '</div></div>' +
+        '<div class="ticket-info-box"><div class="label">ช่างผู้ดูแล</div><div class="value">' + escapeHtmlText(r.tech_name) + '</div></div>' +
         dateBox +
-        '<div class="ticket-info-box"><div class="label">สาขา</div><div class="value">' + r.center_name + '</div></div>' +
+        '<div class="ticket-info-box"><div class="label">สาขา</div><div class="value">' + escapeHtmlText(r.center_name) + '</div></div>' +
       '</div>' +
-      '<p><b>ปัญหา:</b> ' + r.issue_category + '</p>' +
-      '<p><b>รายละเอียด:</b> ' + r.description + '</p>' +
+      '<p><b>ปัญหา:</b> ' + escapeHtmlText(r.issue_category) + '</p>' +
+      '<p><b>รายละเอียด:</b> ' + escapeHtmlText(r.description) + '</p>' +
       (r.closed_at ? '<p><b>ปิดงานเมื่อ:</b> ' + r.closed_at + '</p>' : '') +
       '<h4 style="margin-bottom:6px;">ประวัติการดำเนินงาน</h4>' +
       historyHtml +
@@ -336,18 +336,18 @@
     } else if (kind === 'assigned') {
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr>' +
         data.map(function (r) {
-          return '<tr><td>#' + r.ticket_id + '</td><td>' + r.model + '</td><td>' +
+          return '<tr><td>#' + r.ticket_id + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' +
             (STATUS_ICONS[r.status] || '') + ' ' + r.status_label + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     } else if (kind === 'closed') {
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>วันที่ปิดงาน</th></tr>' +
         data.map(function (r) {
-          return '<tr><td>#' + r.ticket_id + '</td><td>' + r.model + '</td><td>' + r.date + '</td></tr>';
+          return '<tr><td>#' + r.ticket_id + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     } else {
       body.innerHTML = '<table class="sortable"><tr><th>ตั๋ว</th><th>รุ่นเครื่อง</th><th>รายการ</th><th>ค่าแรง (บาท)</th><th>วันที่</th></tr>' +
         data.map(function (r) {
-          return '<tr><td>#' + r.ticket_id + '</td><td>' + r.model + '</td><td>' + (r.action || '-') +
+          return '<tr><td>#' + r.ticket_id + '</td><td>' + escapeHtmlText(r.model) + '</td><td>' + (r.action || '-') +
             '</td><td>' + fmtBaht(r.fee) + '</td><td>' + r.date + '</td></tr>';
         }).join('') + '</table>';
     }

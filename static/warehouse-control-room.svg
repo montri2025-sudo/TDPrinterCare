@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="850" viewBox="0 0 1440 850" fill="none">
+<defs>
+ <linearGradient id="wall" x1="720" y1="0" x2="720" y2="850" gradientUnits="userSpaceOnUse"><stop stop-color="#112b3c"/><stop offset=".65" stop-color="#15283b"/><stop offset="1" stop-color="#070f1d"/></linearGradient>
+ <linearGradient id="floor" x1="720" y1="550" x2="720" y2="850" gradientUnits="userSpaceOnUse"><stop stop-color="#213b50"/><stop offset="1" stop-color="#091420"/></linearGradient>
+ <linearGradient id="suit" x1="0" y1="0" x2="70" y2="150"><stop stop-color="#a68b4c"/><stop offset="1" stop-color="#152637"/></linearGradient>
+ <linearGradient id="desk"><stop stop-color="#64818c"/><stop offset="1" stop-color="#293e54"/></linearGradient>
+</defs>
+<path fill="url(#wall)" d="M0 0h1440v850H0z"/>
+<path d="M0 0h1440l-90 55H90z" fill="#0b1b2b"/><path d="M100 26h400m440 0h400" stroke="#71bec2" stroke-width="4" opacity=".6"/>
+<path d="M0 0 74 55v493L0 715V0ZM1440 0l-74 55v493l74 167V0Z" fill="#101f30"/>
+<path d="M74 55h1292v493H74z" stroke="#36536b"/>
+<path d="M0 715 74 548h1292l74 167v135H0V715Z" fill="url(#floor)"/>
+<path d="M74 548 0 850m300-302L204 850m320-302-60 302m256-302v302m200-302 60 302m166-302 96 302m124-302 74 302M47 610h1346M24 695h1392M0 800h1440" stroke="#315366" opacity=".35"/>
+<path d="M135 558h1170l-53 91H188l-53-91Z" fill="#102738" stroke="#3b6476"/>
+<path d="m135 558 53 91v35l-53-101v-25Zm1170 0-53 91v35l53-101v-25Z" fill="#0c1b2c"/>
+<path d="M188 649h1064v35H188z" fill="#142e42"/>
+<path d="M220 583h178l20 26H237l-17-26Zm411 0h178l-2 26H632l-1-26Zm411 0h178l-17 26h-181l20-26Z" fill="#376171" stroke="#537b84"/>
+<path d="M244 615h167m224 0h166m228 0h167" stroke="#6dada6" stroke-width="3" opacity=".5"/>
+<!-- Warehouse staff with tablet -->
+<ellipse cx="447" cy="784" rx="50" ry="12" fill="#030a14" opacity=".6"/>
+<path d="m423 706-4 65 15 4 15-53 9 52 14-3-4-67-45 2Z" fill="#112130"/>
+<path d="m420 772-12 8v6h30v-12m20 1-2 10h28l-13-14" fill="#07121f"/>
+<path d="M424 625h30l19 18-1 71h-56l-5-70 13-19Z" fill="url(#suit)" stroke="#4f697b"/>
+<path d="m436 626 4 54 11-54" fill="#a9c1c6"/><path d="m441 636 4-4 4 6-4 34-4-36Z" fill="#397b86"/>
+<path d="m412 644-11 44 26 13 7-10-19-13 9-27m47-7 8 33-28 13-5-11 19-9-9-21" fill="#304c63" stroke="#587283"/>
+<rect x="422" y="672" width="38" height="27" rx="3" transform="rotate(-8 422 672)" fill="#122c3d" stroke="#74c5c2"/>
+<path d="m430 681 20-3m-19 8 14-2" stroke="#62c1ab"/>
+<path d="M429 608h18v24h-18z" fill="#bfa28f"/><ellipse cx="438" cy="598" rx="20" ry="25" fill="#c9b29d"/>
+<path d="M419 600v-17c5-16 32-16 38 1l-2 17-8-16-21 3-7 12Z" fill="#172735"/>
+<!-- Warehouse staff pointing towards the monitor wall -->
+<ellipse cx="735" cy="796" rx="50" ry="12" fill="#030a14" opacity=".6"/>
+<path d="m713 713-3 67 15 2 13-56 9 58 15-2-4-70-45 1Z" fill="#152638"/>
+<path d="m710 777-12 10v6h29v-12m20-2-1 15h29l-14-12" fill="#07121f"/>
+<path d="m714 630 35-2 17 23-5 74h-57l-3-70 13-25Z" fill="#987c40" stroke="#617d91"/>
+<path d="m724 631 11 50 9-51" fill="#bed1cf"/><path d="m733 641 5-3 3 5-5 31-3-33Z" fill="#608f8e"/>
+<path d="m754 638 37-27 24-30 10 7-26 36-38 33" fill="#385874" stroke="#6c8da1"/>
+<path d="m813 582 8-11 12-11 4 3-9 12 5 6-10 9" fill="#c6aa92"/>
+<path d="m703 649-13 40 15 18 7-8-9-15 11-26" fill="#304b62" stroke="#627f94"/>
+<path d="M724 611h20v25h-20z" fill="#b4967e"/><ellipse cx="734" cy="600" rx="22" ry="26" fill="#bea48c"/>
+<path d="M713 601v-15c6-20 35-19 42 0v17l-8-17-25 2-9 13Z" fill="#172532"/>
+<!-- Warehouse staff with hands behind the back -->
+<ellipse cx="1035" cy="781" rx="45" ry="11" fill="#030a14" opacity=".6"/>
+<path d="m1014 706-1 61 13 6 12-53 8 53 13-4-3-65-42 2Z" fill="#14222d"/>
+<path d="m1013 766-10 9v6h27v-12m15 0-1 11h27l-12-11" fill="#07121f"/>
+<path d="m1016 626 35-1 15 20-6 70h-51l-5-67 12-22Z" fill="#a58d4e" stroke="#6c7e88"/>
+<path d="m1025 627 11 46 8-47" fill="#c4c9c2"/>
+<path d="m1006 646-8 34 24 20 9-9-19-15 7-23m45-8 8 34-22 20-9-10 18-13-8-25" fill="#3d4d5b" stroke="#73818a"/>
+<path d="m1024 691 16 1 3 9-16 1-3-11Z" fill="#c0a28b"/>
+<path d="M1026 608h19v23h-19z" fill="#b29680"/><ellipse cx="1035" cy="597" rx="21" ry="26" fill="#c0a58e"/>
+<path d="M1015 602v-18c8-19 34-17 41 0v19l-9-17-22 1-10 15Z" fill="#62717a"/>
+<path d="M75 55v493m1291-493v493" stroke="#55c4b3" stroke-width="2" opacity=".5"/>
+</svg>

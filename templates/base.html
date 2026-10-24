@@ -8,8 +8,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v('style.css') }}">
+<link rel="stylesheet" href="/static/app-modern.css?v={{ asset_v('app-modern.css') }}">
 <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ asset_v('logo.svg') }}">
 <script>
+  // Escape dynamic text before inserting it into an HTML template string.
+  function escapeHtmlText(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch];
+    });
+  }
   // อ่านสถานะซ่อน/แสดงเมนูด้านซ้ายจากครั้งก่อน แล้วตั้งค่าก่อนหน้าเพจ render เพื่อไม่ให้เมนูกระพริบ
   (function () {
     try {
@@ -21,7 +28,7 @@
 </script>
 {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 <div class="topnav">
   <div style="display:flex;align-items:center;">
     <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="เปิด/ปิดเมนู" title="เปิด/ปิดเมนู">☰</button>
@@ -48,9 +55,10 @@
   <aside class="sidebar" id="sidebar">
     <nav>
       {% if user %}
+        {% if user.role in ('admin', 'manager', 'technician_lead', 'technician', 'sales') %}<a href="/staff/warehouse">จอสรุปคลังสินค้า</a>{% endif %}
         {% if user.role == 'admin' %}
           <a href="/admin/dashboard">Dashboard</a>
-          <a href="/admin/board">Kanban Board</a>
+          <a href="/admin/board">Virtual Office</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/admin/inventory">คลังสินค้า</a>
@@ -67,7 +75,7 @@
           <a href="/admin/commission-report">🏅 ค่าคอมมิชชั่นช่าง/หัวหน้าช่าง</a>
         {% elif user.role == 'manager' %}
           <a href="/manager/dashboard">Dashboard</a>
-          <a href="/admin/board">Kanban Board</a>
+          <a href="/admin/board">Virtual Office</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/manager/approvals">อนุมัติเบิกอะไหล่</a>
@@ -81,7 +89,7 @@
           <a href="/sharespace">🔗 ShareSpace</a>
         {% elif user.role == 'technician_lead' %}
           <a href="/tech/tasks">งานของฉัน</a>
-          <a href="/admin/board">Kanban Board</a>
+          <a href="/admin/board">Virtual Office</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/tech/report">📊 รายงานของฉัน</a>
@@ -99,6 +107,7 @@
           <a href="/sharespace">🔗 ShareSpace</a>
         {% elif user.role == 'customer' %}
           <a href="/customer/dashboard">📊 Dashboard</a>
+          <a href="/customer/office">Virtual Office ของฉัน</a>
           <a href="/customer/maintenance">🔧 บำรุงรักษาเครื่องของฉัน</a>
           <a href="/customer/tickets">ตั๋วซ่อมของฉัน</a>
           <a href="/customer/new">แจ้งซ่อมใหม่</a>
@@ -122,6 +131,9 @@
 <script>
   // ปุ่ม ☰ เปิด/ปิดเมนูด้านซ้าย — จอใหญ่: ย่อเมนูให้แคบลง (จำค่าไว้ใช้ครั้งหน้าด้วย) / จอเล็ก: เปิดเป็นแผงลอยทับเนื้อหา
   (function () {
+    document.querySelectorAll('.sidebar nav a').forEach(function (link) {
+      if (link.getAttribute('href') === window.location.pathname) link.setAttribute('aria-current', 'page');
+    });
     var toggle = document.getElementById('sidebarToggle');
     var backdrop = document.getElementById('sidebarBackdrop');
     var COLLAPSE_KEY = 'tdsp_sidebar_collapsed';
