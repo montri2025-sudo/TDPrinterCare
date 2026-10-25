@@ -122,6 +122,7 @@
   </aside>
   <div class="main-area">
     <div class="container">
+    {% if user and user.role == 'customer' %}{% include '_customer_demo.html' %}{% endif %}
     {% block content %}{% endblock %}
     </div>
   </div>

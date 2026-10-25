@@ -1737,6 +1737,27 @@ def customer_dashboard(environ, m, conn, user):
         if r["type"] in customer_devices_by_type_for_js:
             customer_devices_by_type_for_js[r["type"]].append(item)
 
+    # Factory visualization reuses the owner-scoped device/maintenance results above.
+    factory_devices = []
+    factory_labels = {"ready": "พร้อมใช้งานตามบันทึก", "maintenance_due": "ถึงรอบบำรุงรักษา",
+                      "in_repair": "มีงานซ่อมที่ยังไม่ปิด", "decommissioned": "เลิกใช้งาน", "sold": "ขายต่อแล้ว"}
+    for row in device_rows:
+        overview = row["overview"]
+        factory_devices.append({
+            "sn": row["device_sn"], "model": row["model"], "type": row["type"] if row["type"] in db.DEVICE_TYPES else "Other",
+            "status": overview["status"], "statusLabel": factory_labels[overview["status"]],
+            "hours": row["total_usage_hours"] or 0, "ticketId": overview["open_ticket_id"],
+            "due": bool(overview["due_tasks"]),
+            "tasks": [{"name": task["task_name"], "detail": task["overdue_label"] or "ถึงรอบตามแผนบำรุงรักษา"}
+                      for task in overview["due_tasks"]],
+        })
+    for row in inactive_devices:
+        status = "decommissioned" if row["status"] == "Decommissioned" else "sold"
+        factory_devices.append({"sn": row["device_sn"], "model": row["model"],
+            "type": row["type"] if row["type"] in db.DEVICE_TYPES else "Other", "status": status,
+            "statusLabel": factory_labels[status], "hours": row["total_usage_hours"] or 0,
+            "ticketId": None, "due": False, "tasks": []})
+
     # --- แผนที่ตำแหน่งของฉัน + ศูนย์บริการทั้งหมด — ตำแหน่งลูกค้ามาจาก Geolocation API ของเบราว์เซอร์
     # (บันทึกอัตโนมัติตอนเข้าหน้า "เพิ่มเครื่องพิมพ์ของฉัน" ถ้าอนุญาต) หรือแอดมินกรอกให้เองก็ได้ที่หน้าลูกค้า/เครื่อง
     my_customer_row = conn.execute(
@@ -1755,7 +1776,7 @@ def customer_dashboard(environ, m, conn, user):
     ]
 
     return render(
-        "customer_dashboard.html", user=user, counts=counts, total=total,
+        "customer_dashboard.html", factory_devices=factory_devices, user=user, counts=counts, total=total,
         customer_cases_for_js=customer_cases_for_js, summary=summary,
         customer_devices_for_js=customer_devices_for_js,
         device_type_labels=device_type_labels, type_counts=type_counts,

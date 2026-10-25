@@ -1,12 +1,18 @@
 {% extends "base.html" %}
 {% import "_gauge_macros.html" as gauges %}
-{% block title %}Dashboard ของฉัน{% endblock %}
+{% block title %}My Virtual Factory · โรงงานของฉัน{% endblock %}
+{% block body_class %}office-mode factory-mode{% endblock %}
 {% block extra_head %}
+<link rel="stylesheet" href="/static/virtual-office-scene.css?v={{ asset_v('virtual-office-scene.css') }}">
+<link rel="stylesheet" href="/static/customer-factory.css?v={{ asset_v('customer-factory.css') }}">
+<script src="/static/customer-factory.js?v={{ asset_v('customer-factory.js') }}" defer></script>
 {% if my_location or centers_with_geo %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 {% endif %}
 {% endblock %}
 {% block content %}
+{% include "_customer_factory.html" %}
+<details class="factory-legacy" id="factory-legacy"><summary>ดู Dashboard รายละเอียดและแผนที่เดิม</summary>
 <h1>📊 Dashboard ของฉัน</h1>
 <div class="customer-office-entry"><div><strong>เครื่องของฉันอยู่ขั้นตอนไหน?</strong><p>ดูห้องทำงานและความคืบหน้าล่าสุดใน Virtual Office ของคุณ</p></div><a class="btn" href="/customer/office">เปิด Virtual Office →</a></div>
 <p class="hint" style="margin-top:-6px;">👆 คลิกที่ตัวเลขบนการ์ดเพื่อดูรายละเอียด</p>
@@ -234,4 +240,5 @@
   else { myMap.setView([13.7563, 100.5018], 6); }
 </script>
 {% endif %}
+</details>
 {% endblock %}
