@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}ผลการส่งใบเสนอราคาไป Odoo{% endblock %}
+{% block content %}
+<h1>ใบเสนอราคาใน Odoo</h1>
+<div class="card">
+<h2>{{ result.name }}</h2><p>อ้างอิง: <strong>{{ result.reference }}</strong> · สถานะ Odoo: {{ result.state }}</p>
+{% if result.reused %}<p>รายการนี้มีเอกสารใน Odoo แล้ว จึงใช้เอกสารเดิมโดยไม่สร้างซ้ำหรือเขียนทับ</p>{% else %}<p class="ok">สร้างใบเสนอราคาร่างใน Odoo สำเร็จ</p>{% endif %}
+{% if result.source_changed %}<p class="warning">ข้อมูลต้นทางต่างจากครั้งที่ส่งไว้ กรุณาตรวจและแก้ไขเอกสารใน Odoo ด้วยตนเอง</p>{% endif %}
+<p>ตรวจรายการสินค้า ราคา และภาษีในเมนู Sales ของ Odoo ก่อนยืนยัน ใบเสนอราคานี้ยังไม่ยืนยันขาย ไม่ออกใบแจ้งหนี้ และไม่ตัดสต็อกใน Odoo</p>
+<a href="{{ back }}" class="btn secondary">กลับไปเอกสารต้นทาง</a>
+</div>
+{% endblock %}

@@ -1,0 +1,110 @@
+{
+  "services": {
+    "postgres": {
+      "image": "postgres:16-alpine",
+      "environment": {
+        "POSTGRES_USER": "tdprinter",
+        "POSTGRES_PASSWORD": "${PG_PASSWORD}",
+        "POSTGRES_DB": "tdprinter_care"
+      },
+      "volumes": [
+        "app-db:/var/lib/postgresql/data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U tdprinter -d tdprinter_care"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 20
+      }
+    },
+    "odoo-db": {
+      "image": "postgres:16-alpine",
+      "environment": {
+        "POSTGRES_USER": "odoo",
+        "POSTGRES_PASSWORD": "${ODOO_DB_PASSWORD}",
+        "POSTGRES_DB": "postgres"
+      },
+      "volumes": [
+        "odoo-db:/var/lib/postgresql/data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U odoo"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 20
+      }
+    },
+    "odoo": {
+      "build": {
+        "context": "./odoo"
+      },
+      "image": "tdprinter-odoo:local-test",
+      "depends_on": {
+        "odoo-db": {
+          "condition": "service_healthy"
+        }
+      },
+      "environment": {
+        "HOST": "odoo-db",
+        "USER": "odoo",
+        "PASSWORD": "${ODOO_DB_PASSWORD}",
+        "ODOO_MASTER_PASSWORD": "${ODOO_MASTER_PASSWORD}",
+        "TEST_ODOO_ADMIN_PASSWORD": "${ODOO_API_KEY}",
+        "TDSP_LOCAL_TEST": "1"
+      },
+      "ports": [
+        "127.0.0.1:18869:8069"
+      ],
+      "volumes": [
+        "odoo-data:/var/lib/odoo"
+      ]
+    },
+    "app": {
+      "build": {
+        "context": "."
+      },
+      "image": "tdprinter-care:local-test",
+      "depends_on": {
+        "postgres": {
+          "condition": "service_healthy"
+        }
+      },
+      "environment": {
+        "PG_HOST": "postgres",
+        "PG_PORT": "5432",
+        "PG_USER": "tdprinter",
+        "PG_PASSWORD": "${PG_PASSWORD}",
+        "PG_DATABASE": "tdprinter_care",
+        "PORT": "8000",
+        "COOKIE_SECURE": "0",
+        "SEED_DEMO_DATA": "0",
+        "INITIAL_ADMIN_USERNAME": "${INITIAL_ADMIN_USERNAME}",
+        "INITIAL_ADMIN_PASSWORD": "${INITIAL_ADMIN_PASSWORD}",
+        "ODOO_URL": "${ODOO_URL}",
+        "ODOO_DB": "${ODOO_DB}",
+        "ODOO_USERNAME": "${ODOO_USERNAME}",
+        "ODOO_API_KEY": "${ODOO_API_KEY}",
+        "PUBLIC_BASE_URL": "${PUBLIC_BASE_URL}",
+        "TDSP_LOCAL_TEST": "1"
+      },
+      "ports": [
+        "127.0.0.1:18865:8000"
+      ],
+      "volumes": [
+        "app-uploads:/app/uploads"
+      ]
+    }
+  },
+  "volumes": {
+    "app-db": {},
+    "odoo-db": {},
+    "odoo-data": {},
+    "app-uploads": {}
+  }
+}

@@ -49,13 +49,25 @@ class _TimeoutTransport(xmlrpc.client.Transport):
         return conn
 
 
+class _TimeoutSafeTransport(xmlrpc.client.SafeTransport):
+    def __init__(self, timeout):
+        super().__init__()
+        self._timeout = timeout
+
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = self._timeout
+        return conn
+
+
 def _make_proxy(path):
     """สร้าง ServerProxy ไปยัง endpoint ของ Odoo (เช่น /xmlrpc/2/common หรือ /xmlrpc/2/object)
     พร้อม timeout ที่ตั้งไว้ — คืนค่า None ถ้ายังไม่ได้ตั้งค่า ODOO_URL"""
     if not db.ODOO_URL:
         return None
     url = f"{db.ODOO_URL}{path}"
-    transport = _TimeoutTransport(ODOO_REQUEST_TIMEOUT_SEC, use_https=url.startswith("https://"))
+    transport = (_TimeoutSafeTransport(ODOO_REQUEST_TIMEOUT_SEC) if url.startswith("https://")
+                 else _TimeoutTransport(ODOO_REQUEST_TIMEOUT_SEC))
     return xmlrpc.client.ServerProxy(url, transport=transport, allow_none=True)
 
 
@@ -389,4 +401,100 @@ def sync_service_center(center_id, name, address=None, phone=None, tax_id=None, 
         return partner_id
     except (xmlrpc.client.Fault, xmlrpc.client.ProtocolError, socket.timeout, OSError, ValueError) as e:
         print(f"[odoo_client] ซิงก์ศูนย์บริการ center_id={center_id} ไป Odoo ไม่สำเร็จ: {e}")
+        return None
+
+
+class OdooQuotationError(Exception):
+    """A safe, user-facing reason that no quotation was synchronized."""
+
+
+def sync_quotation(source_kind, source_id, partner_id, lines, notes=""):
+    """Create one draft per source reference. Existing Odoo documents are never overwritten.
+
+    Caller serializes requests by locking the source order row. This only creates
+    a quotation; no confirm, invoice, delivery, email or payment action is called.
+    Prices are THB and taxes are left empty for explicit review in Odoo.
+    """
+    import hashlib
+    import html
+    import json
+    import math
+    if source_kind not in ("sale", "restock") or not isinstance(source_id, int) or source_id <= 0:
+        raise OdooQuotationError("ประเภทหรือหมายเลขเอกสารไม่ถูกต้อง")
+    if not partner_id or not lines:
+        raise OdooQuotationError("ต้องมีลูกค้าและรายการสินค้าอย่างน้อยหนึ่งรายการ")
+    for line in lines:
+        if (not line.get("template_id") or not math.isfinite(float(line["quantity"]))
+                or float(line["quantity"]) <= 0 or not math.isfinite(float(line["unit_price"]))
+                or float(line["unit_price"]) < 0):
+            raise OdooQuotationError("จำนวนหรือราคาสินค้าไม่ถูกต้อง")
+    if not _is_configured():
+        raise OdooQuotationError("ยังไม่ได้ตั้งค่าการเชื่อมต่อ Odoo")
+    uid = _authenticate()
+    if not uid:
+        raise OdooQuotationError("เชื่อมต่อหรือเข้าสู่ระบบ Odoo ไม่สำเร็จ")
+    models = _make_proxy("/xmlrpc/2/object")
+    def call(model, method, args, kwargs=None):
+        return models.execute_kw(db.ODOO_DB, uid, db.ODOO_API_KEY, model, method, args, kwargs or {})
+    ref = f"TDSP-{source_kind.upper()}-{source_id}"
+    canonical = json.dumps({"partner":partner_id,"lines":lines,"notes":notes}, sort_keys=True, ensure_ascii=False)
+    digest = "TDSP-SOURCE-SHA256:" + hashlib.sha256(canonical.encode()).hexdigest()
+    try:
+        company_id = call("res.users", "read", [[uid]], {"fields":["company_id"]})[0]["company_id"][0]
+        existing = call("sale.order", "search_read", [[["client_order_ref","=",ref],["company_id","=",company_id]]],
+                        {"fields":["name","state","note"],"limit":2})
+        if len(existing) > 1:
+            raise OdooQuotationError("พบเอกสารอ้างอิงซ้ำใน Odoo กรุณาให้ผู้ดูแลตรวจสอบก่อน")
+        if existing:
+            order = existing[0]
+            return {"id":order["id"],"name":order["name"],"state":order["state"],"reference":ref,
+                    "reused":True,"source_changed":digest not in (order.get("note") or "")}
+        partner = call("res.partner", "read", [[int(partner_id)]], {"fields":["property_product_pricelist"]})
+        if not partner or not partner[0].get("property_product_pricelist"):
+            raise OdooQuotationError("กรุณาตั้งรายการราคาสกุลเงินบาทให้ลูกค้าใน Odoo ก่อน")
+        pricelist_id = partner[0]["property_product_pricelist"][0]
+        pricelist = call("product.pricelist", "read", [[pricelist_id]], {"fields":["currency_id"]})[0]
+        currency = call("res.currency", "read", [[pricelist["currency_id"][0]]], {"fields":["name"]})[0]
+        if currency["name"] != "THB":
+            raise OdooQuotationError("รายการราคาลูกค้าใน Odoo ต้องเป็นสกุล THB ก่อนส่งราคาบาท")
+        fields = call("sale.order.line", "fields_get", [], {"attributes":["type"]})
+        tax_field = "tax_ids" if "tax_ids" in fields else "tax_id"
+        commands = []
+        for line in lines:
+            variants = call("product.product", "search", [[["product_tmpl_id","=",int(line["template_id"])]]], {"limit":2})
+            if len(variants) != 1:
+                raise OdooQuotationError("สินค้ามีหลายตัวเลือกหรือไม่พบสินค้าใน Odoo ต้องระบุตัวเลือกให้ชัดเจนก่อน")
+            commands.append((0,0,{"product_id":variants[0],"name":line["name"],
+                "product_uom_qty":float(line["quantity"]),"price_unit":float(line["unit_price"]),
+                tax_field:[(5,0,0)]}))
+        order_id = call("sale.order", "create", [{"partner_id":int(partner_id),"company_id":company_id,
+            "client_order_ref":ref,"origin":ref,"pricelist_id":pricelist_id,"order_line":commands,
+            "note":"<p>"+html.escape(digest)+"</p><p>"+html.escape(notes or "")+"</p><p>นำเข้าจาก TDPrinterCare — ตรวจภาษีใน Odoo ก่อนยืนยันเอกสาร</p>"}], {"context":{"mail_create_nosubscribe":True,"tracking_disable":True}})
+        order = call("sale.order", "read", [[order_id]], {"fields":["name","state"]})[0]
+        if order["state"] != "draft":
+            raise OdooQuotationError("Odoo คืนสถานะเอกสารที่ไม่ใช่ใบเสนอราคาร่าง กรุณาตรวจสอบใน Odoo")
+        return {"id":order_id,"name":order["name"],"state":order["state"],"reference":ref,
+                "reused":False,"source_changed":False}
+    except OdooQuotationError:
+        raise
+    except (xmlrpc.client.Fault, xmlrpc.client.ProtocolError, socket.timeout, OSError, ValueError, KeyError, IndexError, TypeError):
+        raise OdooQuotationError("ซิงก์ใบเสนอราคาไม่สำเร็จ กรุณาตรวจการเชื่อมต่อ สิทธิ์ และโมดูล Sales ใน Odoo") from None
+
+
+def resolve_quotation_product(sku, name):
+    """Resolve by exact SKU, creating only missing masters. Never rewrite catalog prices."""
+    uid = _authenticate()
+    if not uid:
+        return None
+    try:
+        models = _make_proxy('/xmlrpc/2/object')
+        found = models.execute_kw(db.ODOO_DB,uid,db.ODOO_API_KEY,'product.template','search',
+                                 [[["default_code","=",sku]]],{'limit':2})
+        if len(found) > 1:
+            return None
+        if found:
+            return found[0]
+        return models.execute_kw(db.ODOO_DB,uid,db.ODOO_API_KEY,'product.template','create',
+                                 [{'name':name,'default_code':sku,'sale_ok':True}])
+    except (xmlrpc.client.Fault,xmlrpc.client.ProtocolError,socket.timeout,OSError,ValueError):
         return None

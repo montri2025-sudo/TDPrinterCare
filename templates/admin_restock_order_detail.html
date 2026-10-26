@@ -4,6 +4,12 @@
 <h1>📦 คำสั่งซื้อ #{{ order.order_id }}</h1>
 <p><a href="/admin/restock-orders">&larr; กลับไปรายการคำสั่งซื้อทั้งหมด</a></p>
 
+{% if order.status != 'cancelled' %}
+<div class="card"><h2 style="margin-top:0;">ส่งใบเสนอราคาไป Odoo</h2>
+<p class="hint">สร้างใบเสนอราคาร่างจากรายการนี้ แล้วทำงานต่อใน Odoo ตรวจภาษีก่อนยืนยัน เอกสารที่เคยส่งแล้วจะไม่ถูกสร้างซ้ำหรือเขียนทับ</p>
+<form method="post" action="/admin/restock-orders/{{ order.order_id }}/odoo-quotation"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn small" type="submit">ซิงก์เป็นใบเสนอราคาร่างใน Odoo</button></form></div>
+{% endif %}
+
 <div class="card">
   <div class="grid">
     <div><label>ศูนย์บริการปลายทาง</label><div>{{ order.center_name }}</div></div>

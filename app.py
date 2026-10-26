@@ -1658,6 +1658,75 @@ def track(environ, m, conn, user):
                    status_index={s: i for i, s in enumerate(db.STATUSES)})
 
 
+# Draft-only Odoo export, explicitly initiated for one source document.
+def _odoo_order_quotation(environ, conn, user, kind, order_id):
+    require_login(user, *(('admin',) if kind == 'restock' else ('admin','manager','sales')))
+    table = 'Restock_Orders' if kind == 'restock' else 'Sales_Orders'
+    order = conn.execute(f"SELECT * FROM {table} WHERE order_id=? FOR UPDATE", (order_id,)).fetchone()
+    if not order:
+        raise HttpError(404, "ไม่พบคำสั่งซื้อ")
+    require_center_access(user, order['center_id'])
+    if (kind == 'sale' and order['cancelled_at']) or (kind == 'restock' and order['status'] == 'cancelled'):
+        raise HttpError(400, "คำสั่งซื้อถูกยกเลิกแล้ว ไม่ส่งไป Odoo")
+    if not odoo_client._is_configured():
+        raise HttpError(503, "ยังไม่ได้ตั้งค่าการเชื่อมต่อ Odoo")
+    if kind == 'sale':
+        if not order['customer_id']:
+            raise HttpError(400, "กรุณาเลือกลูกค้าในรายการขายก่อนส่งใบเสนอราคาไป Odoo")
+        partner = conn.execute("SELECT * FROM Customers WHERE customer_id=?", (order['customer_id'],)).fetchone()
+        rows = conn.execute("SELECT si.*, sp.part_name FROM Sale_Items si JOIN Spare_Parts sp ON sp.part_sku=si.part_sku WHERE si.order_id=? ORDER BY si.item_id", (order_id,)).fetchall()
+    else:
+        partner = conn.execute("SELECT * FROM Service_Centers WHERE center_id=?", (order['center_id'],)).fetchone()
+        rows = conn.execute("SELECT si.*, sp.part_name FROM Restock_Order_Items si JOIN Spare_Parts sp ON sp.part_sku=si.part_sku WHERE si.order_id=? ORDER BY si.item_id", (order_id,)).fetchall()
+    if not partner or not rows or len(rows) > 100:
+        raise HttpError(400, "ต้องมีลูกค้าหรือศูนย์บริการและสินค้า 1–100 รายการก่อนส่งไป Odoo")
+    import math
+    for row in rows:
+        qty = row['quantity_requested'] if kind == 'restock' else row['quantity']
+        if not qty or not math.isfinite(float(qty)) or float(qty) <= 0 or not math.isfinite(float(row['unit_price'])) or float(row['unit_price']) < 0:
+            raise HttpError(400, "จำนวนหรือราคาสินค้าไม่ถูกต้อง")
+    if kind == 'sale':
+        partner_id = odoo_client.sync_customer(partner['customer_id'], partner['name'], phone=partner['phone'],
+            email=partner['email'],address=partner['address'],tax_id=partner['tax_id'],odoo_partner_id=partner['odoo_partner_id'])
+    else:
+        partner_id = odoo_client.sync_service_center(partner['center_id'],partner['name'],phone=partner['phone'],
+            email=partner['email'],address=partner['address'],tax_id=partner['tax_id'],website=partner['website'],odoo_partner_id=partner['odoo_partner_id'])
+    if not partner_id:
+        raise HttpError(502, "ซิงก์ลูกค้าหรือศูนย์บริการกับ Odoo ไม่สำเร็จ ยังไม่ได้สร้างใบเสนอราคา")
+    lines=[]
+    for row in rows:
+        template_id = odoo_client.resolve_quotation_product(row['part_sku'], row['part_name'])
+        if not template_id:
+            raise HttpError(502, "ซิงก์สินค้ากับ Odoo ไม่สำเร็จ ยังไม่ได้สร้างใบเสนอราคา")
+        lines.append({'template_id':template_id,'name':row['part_name'],
+            'quantity':float(row['quantity_requested'] if kind == 'restock' else row['quantity']),
+            'unit_price':float(row['unit_price'])})
+    try:
+        result=odoo_client.sync_quotation(kind,order_id,int(partner_id),lines,notes=order['notes'] or '')
+    except odoo_client.OdooQuotationError as exc:
+        raise HttpError(502,str(exc)) from None
+    # Publish matching IDs only after Odoo acknowledged the quotation; keep the source lock until then.
+    if kind == 'sale':
+        conn.execute('UPDATE Customers SET odoo_partner_id=? WHERE customer_id=?', (partner_id,partner['customer_id']))
+    else:
+        conn.execute('UPDATE Service_Centers SET odoo_partner_id=? WHERE center_id=?', (partner_id,partner['center_id']))
+    for row,line in zip(rows,lines):
+        conn.execute('UPDATE Spare_Parts SET odoo_product_id=? WHERE part_sku=?', (line['template_id'],row['part_sku']))
+    conn.commit()
+    back=f"/admin/restock-orders/{order_id}" if kind == 'restock' else f"/sales/order/{order_id}"
+    return render('odoo_quotation_result.html',user=user,result=result,back=back)
+
+
+@route('POST', r'/sales/order/(\d+)/odoo-quotation')
+def sales_order_odoo_quotation(environ,m,conn,user):
+    return _odoo_order_quotation(environ,conn,user,'sale',int(m.group(1)))
+
+
+@route('POST', r'/admin/restock-orders/(\d+)/odoo-quotation')
+def restock_order_odoo_quotation(environ,m,conn,user):
+    return _odoo_order_quotation(environ,conn,user,'restock',int(m.group(1)))
+
+
 # ------------------------------------------------------------ customer ---
 
 @route("GET", r"/customer/dashboard")

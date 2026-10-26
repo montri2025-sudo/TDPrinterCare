@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+artifacts
+handoff
+uploads
+postgres-data
+mysql-data
+odoo-data
+odoo-db-data
+__pycache__
+**/__pycache__
+*.pyc

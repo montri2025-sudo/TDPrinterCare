@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 {% block title %}คำสั่งซื้อจากศูนย์บริการ{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/restock-table.css?v={{ asset_v('restock-table.css') }}">
+<script defer src="/static/restock-table.js?v={{ asset_v('restock-table.js') }}"></script>
+{% endblock %}
 {% block content %}
 <h1>📦 คำสั่งซื้อสินค้า/อะไหล่จากศูนย์บริการ</h1>
 <p class="hint" style="margin-top:-6px;">คิวคำสั่งซื้อที่ศูนย์บริการเติมสต็อกเครื่องพิมพ์ 3 มิติ, เส้นพลาสติก/วัสดุ, และอะไหล่ — ดำเนินการและยืนยันจัดส่งพร้อมเลขติดตามพัสดุได้ที่นี่ หรือแอดมิน (HQ) จะสร้างคำสั่งจัดส่งไปยังศูนย์บริการเองโดยตรงก็ได้</p>
 <p><a href="/admin/restock-orders/new" class="btn small">+ สร้างคำสั่งซื้อ/จัดส่งใหม่</a></p>
 
-<div class="card">
+<div class="card restock-table-card">
   {% if not orders %}
   <p class="hint">ยังไม่มีคำสั่งซื้อจากศูนย์บริการใดเลย</p>
   {% else %}
-  <table class="sortable">
+  <div class="restock-table-viewport" id="restock-table-viewport" tabindex="0" role="region" aria-label="ตารางคำสั่งซื้อ เลื่อนแนวนอนเพื่อดูคอลัมน์ทั้งหมด">
+  <table class="sortable" id="restock-orders-table">
     <tr><th>คำสั่งซื้อ</th><th>ศูนย์บริการ</th><th>ผู้สั่งซื้อ</th><th>สถานะ</th><th>รายการสินค้า</th><th>เลขติดตามพัสดุ</th><th>สั่งซื้อเมื่อ</th><th data-no-sort>จัดการ</th></tr>
     {% for o in orders %}
     <tr>
@@ -51,8 +56,17 @@
     </tr>
     {% endfor %}
   </table>
+  </div>
   {% endif %}
 </div>
+{% if orders %}
+<div class="restock-scroll-dock" id="restock-scroll-dock" hidden>
+  <span>เลื่อนตารางซ้าย–ขวา</span>
+  <button type="button" id="restock-scroll-left" aria-label="เลื่อนตารางไปทางซ้าย">◀</button>
+  <input type="range" id="restock-scroll-range" min="0" max="0" value="0" step="1" aria-label="ตำแหน่งการเลื่อนตารางแนวนอน" aria-controls="restock-table-viewport">
+  <button type="button" id="restock-scroll-right" aria-label="เลื่อนตารางไปทางขวา">▶</button>
+</div>
+{% endif %}
 
 <div id="shipOverlay" class="modal-overlay" style="display:none;" onclick="if (event.target === this) closeShipForm();">
   <div class="modal-box" style="max-width:420px;">

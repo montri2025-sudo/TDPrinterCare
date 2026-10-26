@@ -4,6 +4,12 @@
 <h1>🧾 รายการขาย #{{ order.order_id }}</h1>
 <p><a href="/sales/orders">&larr; กลับไปรายการขายทั้งหมด</a></p>
 
+{% if not order.cancelled_at %}
+<div class="card"><h2 style="margin-top:0;">ส่งใบเสนอราคาไป Odoo</h2>
+<p class="hint">สร้างใบเสนอราคาร่างจากรายการนี้ แล้วทำงานต่อใน Odoo ตรวจภาษีก่อนยืนยัน เอกสารที่เคยส่งแล้วจะไม่ถูกสร้างซ้ำหรือเขียนทับ</p>
+<form method="post" action="/sales/order/{{ order.order_id }}/odoo-quotation"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn small" type="submit">ซิงก์เป็นใบเสนอราคาร่างใน Odoo</button></form></div>
+{% endif %}
+
 {% if order.cancelled_at %}
 <div class="card" style="border-left:4px solid #991b1b; background:#fef2f2;">
   <p style="margin:0;">
