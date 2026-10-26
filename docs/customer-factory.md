@@ -46,3 +46,17 @@ pause/cancellation, muted menu continuation, autoplay rejection and guide exclus
 All 28 narration clips were generated and decoded successfully: 195.7 seconds
 total, 1.89 MiB of MP3 audio. The browser preview confirmed recorded playback
 and automatic progression from Dashboard through subsequent customer menus.
+
+## Appearance
+
+The shared top bar has a Light/Dark theme button on all pages using the base
+layout. The choice is applied before the page renders, saved in local storage,
+retained across navigation and synchronized across tabs. Without storage access,
+the button still works for the current page. The default is dark.
+
+Room styles use color tokens with the original dark colors as fallbacks; the
+light palette changes surfaces, text and borders while retaining colored status
+indicators. Common navigation, forms, cards and Demo controls follow the selected
+theme. No server-side preference, database change or new frontend dependency is
+required. Theme behavior has three Node tests; browser checks cover both themes
+and retention from the customer dashboard to maintenance.

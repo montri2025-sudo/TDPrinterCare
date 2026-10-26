@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}TD ServicePro{% endblock %}</title>
+<script src="/static/theme.js?v={{ asset_v('theme.js') }}"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -27,6 +28,7 @@
   })();
 </script>
 {% block extra_head %}{% endblock %}
+<link rel="stylesheet" href="/static/theme.css?v={{ asset_v('theme.css') }}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
 <div class="topnav">
@@ -38,6 +40,7 @@
     </a>
   </div>
   <div class="right">
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="เปลี่ยนธีม">เปลี่ยนธีม</button>
     {% if user %}
       <a href="/notifications" class="btn small secondary" style="position:relative; margin-right:8px;">
         🔔{% if unread_notif_count %}<span class="notif-badge">{{ unread_notif_count }}</span>{% endif %}
