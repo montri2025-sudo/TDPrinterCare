@@ -114,6 +114,12 @@ services:
       - INTEGRATION_API_CLOSED_WINDOW_DAYS=${INTEGRATION_API_CLOSED_WINDOW_DAYS:-}
       - INTEGRATION_API_RATE_LIMIT_PER_MIN=${INTEGRATION_API_RATE_LIMIT_PER_MIN:-}
       - INTEGRATION_API_AUTH_FAIL_LIMIT_PER_MIN=${INTEGRATION_API_AUTH_FAIL_LIMIT_PER_MIN:-}
+      # Demo บริการนอกสถานที่: Google Routes/Maps (ไม่บังคับ เว้นว่าง = ใช้ค่าประมาณจำลอง) ดู docs/field-service-demo.md
+      - GOOGLE_ROUTES_API_KEY=${GOOGLE_ROUTES_API_KEY:-}
+      - GOOGLE_MAPS_BROWSER_KEY=${GOOGLE_MAPS_BROWSER_KEY:-}
+      - GOOGLE_MAPS_MAP_ID=${GOOGLE_MAPS_MAP_ID:-}
+      - FIELD_SERVICE_HQ_LATLNG=${FIELD_SERVICE_HQ_LATLNG:-}
+      - FIELD_SERVICE_GOOGLE_DAILY_CAP=${FIELD_SERVICE_GOOGLE_DAILY_CAP:-}
       # --- อีเมลแจ้งเตือน (Alert & Notification) — ไม่บังคับ เว้นว่างไว้ได้ ระบบจะแจ้งเตือนในแอป (in-app)
       # ตามปกติ แค่จะไม่ส่งอีเมลควบคู่ไปด้วยเท่านั้น ใส่ค่าจริงใน .env เพื่อเปิดใช้งานการส่งอีเมล
       - SMTP_HOST=${SMTP_HOST:-}

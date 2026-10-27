@@ -33,6 +33,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import db
 import integration_api
+import field_service_google
 import odoo_client
 
 BASE_DIR = os.path.dirname(__file__)
@@ -3210,6 +3211,26 @@ def admin_board(environ, m, conn, user):
                                  "active": bool(t["is_active"])} for t in techs],
                   office_return_url="/admin/board?" + urlencode({"from": from_display, "to": to_display}),
                   date_from=from_display, date_to=to_display)
+
+
+# ---------------------------------------------- บริการนอกสถานที่ (Demo) --
+# Demo only: renders a page whose data is entirely fictional and lives in static/field-service-data.js.
+# No database query, no POST route, no stock/quotation/invoice/notification side effects.
+FIELD_SERVICE_DEMO_VIEWS = {
+    "admin": ["control", "tech", "customer", "route"],
+    "manager": ["control", "tech", "customer", "route"],
+    "technician_lead": ["control", "tech", "customer", "route"],
+    "technician": ["tech", "route"],
+}
+
+
+@route("GET", r"/field-service")
+def field_service_demo(environ, m, conn, user):
+    require_login(user, *FIELD_SERVICE_DEMO_VIEWS.keys())
+    views = FIELD_SERVICE_DEMO_VIEWS[user["role"]]
+    return render("field_service_demo.html", user=user,
+                  fsd_config={"views": views, "defaultView": views[0], "role": user["role"],
+                              "google": field_service_google.page_config()})
 
 
 @route("GET", r"/customer/office")
@@ -8524,6 +8545,10 @@ def application(environ, start_response):
         sess = SESSIONS.get(token) if token else None
         _csrf_ctx.set(sess["csrf_token"] if sess else None)
         _notif_ctx.set(_unread_notification_count(conn, user) if user else 0)
+
+        if path.startswith("/field-service/google/") and method == "GET":
+            # Demo: Google Routes proxy (server-side key, fictional points only) — see field_service_google.py
+            return field_service_google.handle(path, environ, user, start_response, FIELD_SERVICE_DEMO_VIEWS)
 
         if path.startswith("/media/") and method == "GET":
             return serve_media(path, conn, user, start_response)

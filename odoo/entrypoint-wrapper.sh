@@ -16,12 +16,15 @@ if [ -n "$ODOO_MASTER_PASSWORD" ]; then
     if [ -f "$CONF" ] && grep -q '^\[options\]' "$CONF"; then
         # ลบบรรทัด admin_passwd เดิม (ถ้ามี) ออกก่อน แล้วแทรกบรรทัดใหม่ต่อจาก [options] — ใช้ awk แทน sed
         # เพื่อเลี่ยงปัญหาอักขระพิเศษในรหัสผ่าน (เช่น @, &, /) ที่จะไปชนกับ syntax ของ sed
-        grep -v -E '^\s*admin_passwd\s*=' "$CONF" > "${CONF}.tmp"
+        # ไฟล์ชั่วคราวต้องอยู่ใน /tmp: image odoo รันด้วยผู้ใช้ odoo ซึ่งเขียนทับไฟล์ odoo.conf ได้
+        # แต่ "สร้างไฟล์ใหม่" ในโฟลเดอร์ /etc/odoo (เจ้าของ root) ไม่ได้ -> Permission denied
+        TMP_CONF="$(mktemp /tmp/odoo.conf.XXXXXX)"
+        grep -v -E '^\s*admin_passwd\s*=' "$CONF" > "$TMP_CONF" || true
         awk -v pw="$ODOO_MASTER_PASSWORD" '
             /^\[options\]/ && !done { print; print "admin_passwd = " pw; done=1; next }
             { print }
-        ' "${CONF}.tmp" > "$CONF"
-        rm -f "${CONF}.tmp"
+        ' "$TMP_CONF" > "$CONF"
+        rm -f "$TMP_CONF"
     else
         { echo "[options]"; echo "admin_passwd = ${ODOO_MASTER_PASSWORD}"; } >> "$CONF"
     fi
