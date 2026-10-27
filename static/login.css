@@ -1,0 +1,13 @@
+.auth-login { max-width: 440px; padding: clamp(24px, 5vw, 40px); border: 1px solid var(--border); border-radius: 22px; border-image: none; color: var(--ink); background: var(--surface); }
+.auth-heading { text-align: center; margin-bottom: 28px; }
+.auth-heading img { display: block; margin: 0 auto 14px; }
+.auth-brand { margin: 0 0 8px; font-weight: 800; letter-spacing: .04em; color: var(--brand); }
+.auth-login h1 { margin: 0 0 10px; font-size: 28px; font-weight: 800; }
+.auth-description { margin: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.7; }
+.auth-login form label { display: block; font-weight: 700; margin: 18px 0 8px; }
+.auth-login input:not([type="hidden"]) { min-height: 48px; border-radius: 10px; }
+.auth-login form .btn { min-height: 48px; margin-top: 22px; font-weight: 700; border-radius: 10px; }
+.auth-signup { text-align: center; padding-top: 20px; margin-top: 24px; border-top: 1px solid var(--border); color: var(--ink-soft); }
+.auth-signup a { font-weight: 700; }
+.auth-login :is(a, input, button):focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+@media (max-width: 600px) { .auth-login { margin: 24px auto; } }
