@@ -4,6 +4,7 @@
 {% block extra_head %}
 <link rel="stylesheet" href="/static/virtual-office.css?v={{ asset_v('virtual-office.css') }}">
 <link rel="stylesheet" href="/static/virtual-office-scene.css?v={{ asset_v('virtual-office-scene.css') }}">
+<script src="/static/service-office-scene.js?v={{ asset_v('service-office-scene.js') }}" defer></script>
 <script src="/static/virtual-office.js?v={{ asset_v('virtual-office.js') }}" defer></script>
 {% endblock %}
 {% block content %}
@@ -62,15 +63,16 @@
   </details>
   {% endif %}
   {% if customer_mode %}<p id="office-device-location" class="customer-device-location" role="status" aria-live="polite">เลือกเครื่องของคุณด้านบนเพื่อเน้นห้องที่เครื่องอยู่ในขั้นตอนปัจจุบัน</p>{% endif %}
-  <div class="office-map-heading"><div><h2>แผนผังร้านและห้องทำงาน<span class="office-map-badge">6 โซน</span></h2><p>{{ 'คลิกเครื่องของคุณเพื่อดูสถานะและประวัติการซ่อม' if customer_mode else 'คลิกห้องเพื่อกรองงาน · คลิกเครื่องเพื่อดูและเปลี่ยนสถานะ' }}</p></div><span class="office-snapshot">ข้อมูล ณ เวลาเปิดหน้า <span id="office-shown-count" aria-live="polite">{{ totals.all }} งาน</span></span></div>
+  <div class="office-map-heading"><div><h2>แผนผังร้านและห้องทำงาน<span class="office-map-badge">6 โซน</span></h2><p>{{ 'คลิกเลขงานของคุณเพื่อดูสถานะและประวัติการซ่อม' if customer_mode else 'คลิกป้ายห้องเพื่อกรองงาน · คลิกเลขงานเพื่อดูและเปลี่ยนสถานะ' }}</p></div><span class="office-snapshot">ข้อมูล ณ เวลาเปิดหน้า <span id="office-shown-count" aria-live="polite">{{ totals.all }} งาน</span></span></div>
   <nav class="office-journey" aria-label="ขั้นตอนงานซ่อม">
     <button type="button" data-stage="" class="office-stage-all is-selected" aria-pressed="true">ทุกขั้นตอน</button>
     {% for s in statuses %}<button type="button" data-stage="{{ s }}" aria-pressed="false"><span>{{ loop.index }}</span>{{ rooms[loop.index0][0] }}<small>{{ board[s]|length }}</small></button>{% endfor %}
   </nav>
   <div class="office-operations">
     <div class="office-scene-panel">
-      <div class="office-scene-topbar"><span><i></i> SERVICE FLOOR <b>{{ 'เครื่องของคุณในแต่ละขั้นตอน' if customer_mode else 'แผนผังสถานะงานซ่อม' }}</b></span><span>{{ 'เฉพาะงานของบัญชีคุณ' if customer_mode else 'ข้อมูลจริงในช่วงวันที่และตัวกรองที่เลือก' }}</span></div>
-      <div class="office-scene-viewport"><svg id="office-scene" viewBox="0 0 1200 800" role="group" aria-label="สำนักงานสามมิติ คลิกห้องเพื่อกรองสถานะ หรือคลิกเครื่องเพื่อเปิดงาน"><title>แผนผังร้าน Virtual Office</title></svg></div>
+      <div class="office-scene-topbar"><span><i></i> SERVICE STUDIO <b>{{ 'เครื่องของคุณในแต่ละขั้นตอน' if customer_mode else 'แผนผังสถานะงานซ่อม' }}</b></span><span>{{ 'เฉพาะงานของบัญชีคุณ' if customer_mode else 'ข้อมูลจริงในช่วงวันที่และตัวกรองที่เลือก' }}</span></div>
+      <div class="office-scene-viewport"><svg id="office-scene" viewBox="0 0 1200 900" role="group" aria-label="สำนักงานบริการ คลิกป้ายห้องหรือเลขงานเพื่อเปิดรายละเอียด"><title>แผนผังร้าน Virtual Office</title></svg></div>
+      <div class="office-motion-bar"><span>ฉากประกอบ · ป้ายเลขงานและชื่อช่างอ้างอิงข้อมูลจริง</span><button type="button" id="office-motion" aria-pressed="false">Ⅱ หยุดภาพเคลื่อนไหว</button></div>
       <div class="office-scene-bottom"><span><i class="legend-dot"></i> งานในระบบ <i class="legend-dot amber"></i> รอดำเนินการ <i class="legend-dot teal"></i> ซ่อม / ทดสอบ <i class="legend-dot violet"></i> ส่งมอบ</span><div><button type="button" id="office-zoom-in" aria-label="ขยายแผนผัง">＋</button><button type="button" id="office-zoom-out" aria-label="ย่อแผนผัง">−</button><button type="button" id="office-zoom-reset" aria-label="คืนขนาดแผนผัง">↺</button></div></div>
     </div>
     <aside class="office-shop-panel" aria-label="หน้าร้านและการจัดส่ง">

@@ -29,3 +29,31 @@ body.office-mode { --bg:var(--room-surface-0c1622, #0c1622); --surface:var(--roo
 .customer-office-intro { padding:14px 17px; background:var(--room-surface-17373b, #17373b); border:1px solid var(--room-edge-30615b, #30615b); border-radius:10px; margin-bottom:14px; color:var(--room-text-94d5c2, #94d5c2); font-size:12px; }.customer-office-intro strong { display:block; margin-bottom:4px; }.customer-office-intro span { color:var(--room-text-7da8a6, #7da8a6); font-size:11px; }
 .customer-device-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(205px,1fr)); gap:12px; margin-bottom:18px; }.customer-device-card { text-align:left; position:relative; padding:16px 18px 16px 48px; border:1px solid var(--room-edge-294659, #294659); border-radius:10px; background:var(--room-surface-132c3c, #132c3c); color:var(--room-text-bed7e0, #bed7e0); cursor:pointer; font:inherit; }.customer-device-card strong { display:block; font-size:13px; }.customer-device-card small { display:block; font-size:10px; color:var(--room-text-759cae, #759cae); margin:5px 0 8px; overflow-wrap:anywhere; }.customer-device-card>span:last-child { font-size:11px; color:var(--room-text-74cbb3, #74cbb3); }.customer-device-symbol { position:absolute; top:13px; left:16px; font-size:22px; color:var(--room-text-65a9a1, #65a9a1); }.customer-device-card:hover,.customer-device-card.is-selected { border-color:var(--room-edge-67cfb1, #67cfb1); background:var(--room-surface-1b3c46, #1b3c46); box-shadow:inset 0 0 0 1px var(--room-edge-67cfb120, #67cfb120); }.customer-readonly-note { padding:13px 15px; margin:20px 0; background:var(--room-surface-193b40, #193b40); border:1px solid var(--room-edge-306667, #306667); border-radius:9px; color:var(--room-text-8ccabc, #8ccabc); font-size:11px; }.customer-office-empty { padding:22px; border:1px dashed var(--room-edge-346074, #346074); border-radius:10px; background:var(--room-surface-152f40, #152f40); color:var(--room-text-b8d3df, #b8d3df); }.customer-office-empty p { font-size:12px; color:var(--room-text-7ca1b3, #7ca1b3); }.customer-machine>polygon { stroke:#83dac2; stroke-width:1.3; }
 .customer-device-location { padding:11px 15px; border-left:3px solid var(--room-edge-5fc5a8, #5fc5a8); background:var(--room-surface-173740, #173740); color:var(--room-text-96cdbf, #96cdbf); font-size:12px; margin:16px 0 18px; border-radius:0 7px 7px 0; overflow-wrap:anywhere; }
+
+/* Office scene controls and bounded character motion. */
+.office-motion-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid var(--border); background:var(--surface); color:var(--ink-soft); font-size:11px; }
+.office-motion-bar button { flex-shrink:0; background:transparent; border:1px solid var(--border); border-radius:7px; color:var(--ink); padding:7px 10px; font:inherit; cursor:pointer; }
+.office-motion-bar button:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+.service-worker { transform-box:fill-box; transform-origin:center bottom; animation:service-working 3s ease-in-out infinite; }
+.service-worker-arm { transform-box:fill-box; transform-origin:center top; animation:service-arm 2s ease-in-out infinite; }
+.service-alert { animation:service-light 2.2s ease-in-out infinite; }
+.scene-static *, .scene-hidden * { animation-play-state:paused !important; }
+@keyframes service-arm { 0%,100%{transform:rotate(-6deg)} 50%{transform:rotate(8deg)} }
+@keyframes service-light { 0%,100%{opacity:1} 50%{opacity:.35} }
+@media(prefers-reduced-motion:reduce) { #office-scene * { animation:none !important; } }
+@media(max-width:520px) { .office-motion-bar { align-items:flex-start; font-size:10px; padding:10px; } }
+
+.service-scene-caption { fill:var(--ink-soft); }
+
+/* Warm office simulator: illustrated room with interactive live-data overlays. */
+.office-scene-panel { border-radius:20px; }
+.office-scene-viewport { background:#f7f1e5; }
+#office-scene { max-height:none; }
+.studio-zone:focus-visible rect:first-child, .studio-job:focus-visible rect:first-of-type { stroke:#132e24; stroke-width:3; }
+.studio-zone:hover rect:first-child, .studio-job:hover rect:first-of-type { fill:#fff7dc; stroke-width:2.5; }
+.studio-empty-label { paint-order:stroke; stroke:#fffbed; stroke-width:4px; stroke-linejoin:round; }
+@keyframes service-working { 0%,100%{transform:translate(0,0)} 25%{transform:translate(5px,-1px)} 50%{transform:translate(10px,0)} 75%{transform:translate(5px,-1px)} }
+@media(max-width:520px) { #office-scene { width:100%; height:auto; min-width:0; } .office-scene-viewport { overflow:hidden; } }
+
+.office .shop-queue-visual { background: #f5eddd url('/static/office-assets/service-studio.webp') 8% 73% / 235% auto no-repeat; height:140px; border-color:#d7c7ae; border-radius:12px; }
+.office .shop-queue-visual > :is(span,b) { display:none; }

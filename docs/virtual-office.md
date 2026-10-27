@@ -88,3 +88,28 @@ No new frontend dependency, animation loop or refresh timer is introduced. The
 existing detailed reports retain their previous Chart.js/Leaflet dependencies.
 `tests/test_monitor_room.py` checks the data mapping, manager branch scope,
 empty-cohort handling and customer role rejection with fictional fixtures.
+
+## Office-simulator studio
+
+`static/service-office-scene.js` places accessible operational overlays on an original
+warm isometric office illustration in `static/office-assets/service-studio.webp` (about 369 KiB).
+This replaces the previous wireframe-style floor. Desks, printers and furniture in the
+illustration are decorative; only numbered job pins, counts and technician name badges
+represent authorized operational records. The renderer never infers work from the artwork.
+
+Six station labels filter the existing statuses. Each station shows up to four clickable
+job pins and two assigned pixel technicians; extra jobs are summarized as `+N`. The bottom
+monitor counts all filtered jobs, technicians, waiting-parts work and pending handovers.
+Empty stations do not invent jobs or staff. Customer scope and the server-authorized save
+form remain unchanged. Closing details opened from a pin returns keyboard focus to that pin.
+
+CSS animates technician work/walking gestures and waiting-parts indicators. The motion
+button pauses animation. Reduced-motion preferences disable it and hidden tabs pause it.
+There is no render loop, polling, external AI service at runtime, new database table or
+OpenClaw/Officestra dependency. Refresh reads the latest authorized data.
+
+Verification: Python 111 + Node 27 tests pass. Renderer tests cover empty stations,
+keyboard actions, literal text, pending dispatch and bounded rendering of 1,000 jobs
+(maximum 24 job pins / 12 technician figures). Browser checks cover station filtering,
+motion controls and light/dark themes. Visual layout fixtures are exported separately under
+ignored artifacts and are never seeded into operational data.
