@@ -81,15 +81,16 @@ class TestFieldServiceDemo(fixtures.ApiTestCase):
     def test_role_scoped_views(self):
         for uid, role, views in ((21, 'manager', ['control', 'tech', 'customer', 'route']),
                                  (12, 'technician_lead', ['control', 'tech', 'customer', 'route']),
-                                 (11, 'technician', ['tech', 'route'])):
+                                 (11, 'technician', ['tech', 'route']),
+                                 (98, 'sales', ['control', 'customer'])):
             status, _, html = self.page(uid)
             self.assertEqual(status, 200, role)
             self.assertEqual(self.config(html)['views'], views, role)
             self.assertEqual(self.config(html)['defaultView'], views[0], role)
             self.assertIn('href="/field-service"', html, role)
 
-    def test_customer_sales_and_anonymous_are_refused(self):
-        for uid in (20, 98):
+    def test_customer_and_anonymous_are_refused(self):
+        for uid in (20,):
             status, _, html = self.page(uid)
             self.assertEqual(status, 403, uid)
             self.assertNotIn('fsd-config', html)
@@ -102,7 +103,7 @@ class TestFieldServiceDemo(fixtures.ApiTestCase):
         before = self.fingerprint()
         RecordingConn.log = []
         with patch.object(app.db, 'get_conn', side_effect=lambda: RecordingConn(self.path)):
-            for uid in (99, 21, 12, 11):
+            for uid in (99, 21, 12, 11, 98):
                 self.page(uid)
             post_status = self.page(99, method='POST')[0]
         self.assertEqual(post_status, 404)            # there is no POST endpoint for the Demo
@@ -234,7 +235,7 @@ class TestFieldServiceGoogleProxy(unittest.TestCase):
             self.assertEqual(self.call('/field-service/google/matrix', q)[0], 400, q)
         self.assertEqual(self.call('/field-service/google/route', 'seq=HQ,lat:13,100')[0], 400)
         self.assertEqual(self.call('/field-service/google/matrix', 'ids=HQ,C1', role=None)[0], 401)
-        for role in ('customer', 'sales'):
+        for role in ('customer',):
             self.assertEqual(self.call('/field-service/google/matrix', 'ids=HQ,C1', role=role)[0], 403)
         self.assertEqual(self.call('/field-service/google/other', '')[0], 404)
         with patch.dict('os.environ', {'GOOGLE_ROUTES_API_KEY': ''}):

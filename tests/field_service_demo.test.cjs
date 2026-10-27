@@ -170,14 +170,16 @@ test('fictional data only', () => {
 // ---------------------------------------------------------------- guided tour --
 const tourSource = fs.readFileSync('static/field-service-tour.js', 'utf8');
 const tourTexts = [...tourSource.matchAll(/step\('[^']*', '[^']*', '[^']*', '([^']*)'\)/g)].map((m) => m[1]);
-function tour({ views = ['control', 'tech', 'customer', 'route'], manifestFor = () => '0123456789abcdef.mp3', reject = false } = {}) {
+const LABELS = { control: 'ห้องควบคุมงานบริการ', tech: 'มุมมองช่าง', customer: 'มุมมองลูกค้า', route: 'แผนการเดินทาง' };
+function tour({ views = ['control', 'tech', 'customer', 'route'], start = 'control', manifestFor = () => '0123456789abcdef.mp3', reject = false } = {}) {
   const nodes = new Map(), events = {}, winEvents = {}, pending = new Map(), audios = [], storage = new Map(), calls = [];
-  let seq = 0;
+  let seq = 0, currentView = start;
   const node = (id) => { if (!nodes.has(id)) nodes.set(id, { id, hidden: true, checked: false, disabled: false, textContent: '', classList: { add() {}, remove() {} }, scrollIntoView() {}, focus() {}, addEventListener(n, fn) { this['on_' + n] = fn; } }); return nodes.get(id); };
+  node('fsd-tour-all').checked = true;
   const manifest = Object.fromEntries(tourTexts.map((t) => [t, manifestFor(t)]).filter(([, f]) => f));
   const ctx = {
     document: { hidden: false, getElementById: node, querySelector: (s) => (s === 'dialog[open]' ? null : node('target:' + s)), querySelectorAll: () => [], addEventListener: (n, fn) => { events[n] = fn; } },
-    window: { FieldServiceDemo: { views, show: (v) => calls.push('show:' + v), openJob: (id, o) => calls.push('job:' + id + ':' + (o && o.modal)), closeDialogs: () => calls.push('close') }, matchMedia: () => ({ matches: true }), addEventListener: (n, fn) => { winEvents[n] = fn; } },
+    window: { FieldServiceDemo: { views, current: () => currentView, label: (v) => LABELS[v], show: (v) => { currentView = v; calls.push('show:' + v); }, openJob: (id, o) => calls.push('job:' + id + ':' + (o && o.modal)), closeDialogs: () => calls.push('close') }, matchMedia: () => ({ matches: true }), addEventListener: (n, fn) => { winEvents[n] = fn; } },
     sessionStorage: { getItem: (k) => storage.get(k) || null, setItem: (k, v) => storage.set(k, v) },
     fetch: async () => ({ ok: true, json: async () => manifest }),
     Audio: class { constructor(src) { this.src = src; audios.push(this); } play() { return reject ? Promise.reject(new Error('blocked')) : Promise.resolve(); } pause() { this.paused = true; } },
@@ -187,39 +189,55 @@ function tour({ views = ['control', 'tech', 'customer', 'route'], manifestFor = 
   };
   ctx.window.document = ctx.document;
   vm.runInNewContext(tourSource, ctx);
-  const flush = () => new Promise((r) => setImmediate(r));
+  const flush = async () => { for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r)); };
   const fireShortest = () => { const next = [...pending].sort((a, b) => a[1].ms - b[1].ms)[0]; assert.ok(next, 'a timer is pending'); pending.delete(next[0]); next[1].fn(); };
-  return { node, events, winEvents, pending, audios, calls, flush, fireShortest, ctx, steps: () => ctx.window.FieldServiceTour.steps };
+  return { node, events, winEvents, pending, audios, calls, flush, fireShortest, ctx, view: () => currentView, groups: () => ctx.window.FieldServiceTour.groups };
 }
 const step = (env) => env.node('fsd-tour-step').textContent;
 
-test('tour has narration for every view incl. route planning, and only fictional guidance', () => {
+test('tour groups steps per allowed tab, in tab order, like the customer Virtual Office Demo', () => {
   assert.ok(tourTexts.length >= 15);
   assert.ok(tourTexts.some((t) => /ไม่ใช่เส้นทางถนนจริง/.test(t)));
   assert.ok(tourTexts.some((t) => /ไม่คิดสภาพจราจรสด/.test(t)));
-  const tech = tour({ views: ['tech', 'route'] });
-  assert.ok(tech.steps().every((s) => ['tech', 'route', '*'].includes(s.view)), 'technician tour skips control/customer steps');
+  assert.deepEqual(tour().groups().map((g) => [g.view, g.steps.length]), [['control', 8], ['tech', 2], ['customer', 1], ['route', 6]]);
+  assert.deepEqual(tour({ views: ['tech', 'route'] }).groups().map((g) => g.view), ['tech', 'route']);
+  assert.deepEqual(tour({ views: ['control', 'customer'] }).groups().map((g) => [g.view, g.steps.length]), [['control', 8], ['customer', 2]]);
+});
+
+test('“Demo แนะนำหน้านี้” starts on the current tab and continues to the next tab only when “เล่นต่อทุกแท็บ” is on', async () => {
+  const env = tour({ start: 'customer', manifestFor: () => null });
+  env.node('fsd-tour-start').on_click(); await env.flush();
+  assert.equal(step(env), 'สาธิต 1 / 1 · มุมมองลูกค้า');
+  assert.equal(env.node('fsd-tour-next').textContent, 'แท็บถัดไป →');
+  env.fireShortest(); await env.flush();                           // captions timer → next tab
+  assert.equal(env.view(), 'route');
+  assert.equal(step(env), 'สาธิต 1 / 6 · แผนการเดินทาง');
+  const off = tour({ start: 'tech', manifestFor: () => null });
+  off.node('fsd-tour-all').checked = false;
+  off.node('fsd-tour-start').on_click(); await off.flush();
+  off.node('fsd-tour-next').on_click();
+  assert.equal(off.node('fsd-tour-next').textContent, 'จบ Demo');
+  off.node('fsd-tour-next').on_click();
+  assert.equal(off.node('fsd-tour-panel').hidden, true);
+  assert.match(off.node('fsd-tour-note').textContent, /จบการสาธิตแท็บนี้แล้ว/);
+  assert.equal(off.view(), 'tech');
 });
 
 test('narration advances only after audio ends; pause, close and hidden tab stop playback', async () => {
   const env = tour();
-  env.node('fsd-tour-start').on_click();
-  await env.flush(); await env.flush();
-  assert.match(step(env), /^ขั้นที่ 1 \//);
+  env.node('fsd-tour-start').on_click(); await env.flush();
+  assert.equal(step(env), 'สาธิต 1 / 8 · ห้องควบคุมงานบริการ');
   assert.equal(env.audios.length, 1);
   assert.equal(env.pending.size, 1, 'only the long watchdog is waiting');
   const firstEnded = env.audios[0].onended;
-  env.node('fsd-tour-pause').on_click();                    // pause
+  env.node('fsd-tour-pause').on_click();
+  assert.equal(env.node('fsd-tour-pause').textContent, 'เล่นต่อ');
   assert.equal(env.audios[0].paused, true);
-  assert.equal(firstEnded !== null, true);
-  firstEnded && firstEnded();                               // stale event after pause is ignored
+  firstEnded();                                                    // stale event after pause is ignored
   assert.equal(env.pending.size, 0);
-  env.node('fsd-tour-pause').on_click();                    // resume
-  await env.flush(); await env.flush();
-  env.audios.at(-1).onended();
-  env.fireShortest();                                       // short gap after speech
-  await env.flush(); await env.flush();
-  assert.match(step(env), /^ขั้นที่ 2 \//);
+  env.node('fsd-tour-pause').on_click(); await env.flush();
+  env.audios.at(-1).onended(); env.fireShortest(); await env.flush();
+  assert.match(step(env), /^สาธิต 2 \/ 8/);
   env.ctx.document.hidden = true; env.events.visibilitychange();
   assert.equal(env.pending.size, 0);
   assert.equal(env.audios.at(-1).paused, true);
@@ -229,35 +247,50 @@ test('narration advances only after audio ends; pause, close and hidden tab stop
   assert.ok(env.calls.includes('close'));
 });
 
-test('mute and missing clips use timed Thai captions without any substitute voice', async () => {
+test('mute (bar or panel) and missing clips use timed Thai captions without any substitute voice', async () => {
   const env = tour({ manifestFor: () => null });
-  env.node('fsd-tour-start').on_click();
-  await env.flush(); await env.flush();
+  env.node('fsd-tour-start').on_click(); await env.flush();
   assert.equal(env.audios.length, 0);
   assert.match(env.node('fsd-tour-note').textContent, /ยังไม่มีไฟล์เสียงต้นแบบ/);
-  env.fireShortest(); await env.flush(); await env.flush();
-  assert.match(step(env), /^ขั้นที่ 2 \//);
   const m = tour();
-  m.node('fsd-tour-mute').checked = true; m.node('fsd-tour-mute').on_change();
-  m.node('fsd-tour-start').on_click(); await m.flush(); await m.flush();
-  assert.equal(m.audios.length, 0);
+  m.node('fsd-tour-start').on_click(); await m.flush();
+  m.node('fsd-tour-panel-mute').checked = true; m.node('fsd-tour-panel-mute').on_change();
+  assert.equal(m.node('fsd-tour-mute').checked, true, 'bar and panel checkboxes stay in sync');
+  assert.equal(m.audios[0].paused, true);
   assert.match(m.node('fsd-tour-note').textContent, /ปิดเสียง/);
 });
 
-test('blocked autoplay pauses with a resume prompt; prev/next/restart navigate; job steps open non-modal', async () => {
+test('blocked autoplay pauses with a resume prompt; back crosses tabs; restart; job steps open non-modal', async () => {
   const env = tour({ reject: true });
-  env.node('fsd-tour-start').on_click(); await env.flush(); await env.flush(); await env.flush();
-  assert.equal(env.node('fsd-tour-pause').textContent, '▶ เล่นต่อ');
+  env.node('fsd-tour-start').on_click(); await env.flush();
+  assert.equal(env.node('fsd-tour-pause').textContent, 'เล่นต่อ');
   assert.equal(env.pending.size, 0);
-  const env2 = tour();
-  env2.node('fsd-tour-start').on_click();
-  for (let i = 0; i < 5; i++) env2.node('fsd-tour-next').on_click();
-  assert.match(step(env2), /^ขั้นที่ 6 \//);
-  assert.ok(env2.calls.includes('job:FS-1004:false'));
-  env2.node('fsd-tour-prev').on_click();
-  assert.match(step(env2), /^ขั้นที่ 5 \//);
-  env2.node('fsd-tour-restart').on_click();
-  assert.match(step(env2), /^ขั้นที่ 1 \//);
-  env2.winEvents.pagehide();
-  assert.equal(env2.pending.size, 0);
+  const e2 = tour({ manifestFor: () => null });
+  e2.node('fsd-tour-start').on_click();
+  for (let i = 0; i < 5; i++) e2.node('fsd-tour-next').on_click();
+  assert.match(step(e2), /^สาธิต 6 \/ 8/);
+  assert.ok(e2.calls.includes('job:FS-1004:false'));
+  for (let i = 0; i < 3; i++) e2.node('fsd-tour-next').on_click();     // into tech tab
+  assert.equal(e2.view(), 'tech');
+  e2.node('fsd-tour-prev').on_click();                                  // back to last control step
+  assert.equal(e2.view(), 'control');
+  assert.match(step(e2), /^สาธิต 8 \/ 8/);
+  e2.node('fsd-tour-restart').on_click();
+  assert.equal(step(e2), 'สาธิต 1 / 8 · ห้องควบคุมงานบริการ');
+  assert.equal(e2.node('fsd-tour-prev').disabled, true);
+  e2.winEvents.pagehide();
+  assert.equal(e2.pending.size, 0);
+});
+
+test('startAll (used by the staff menu Demo) plays every tab and calls back only when finished, not when closed', async () => {
+  let finished = 0;
+  const env = tour({ start: 'route', manifestFor: () => null });
+  env.ctx.window.FieldServiceTour.startAll(() => { finished += 1; });
+  assert.equal(step(env), 'สาธิต 1 / 8 · ห้องควบคุมงานบริการ');
+  for (let i = 0; i < 17; i++) env.node('fsd-tour-next').on_click();
+  assert.equal(finished, 1);
+  const closed = tour({ manifestFor: () => null });
+  closed.ctx.window.FieldServiceTour.startAll(() => { finished += 1; });
+  closed.node('fsd-tour-close').on_click();
+  assert.equal(finished, 1);
 });

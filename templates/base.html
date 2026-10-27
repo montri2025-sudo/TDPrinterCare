@@ -109,6 +109,7 @@
         {% elif user.role == 'sales' %}
           <a href="/sales/orders">รายการขาย</a>
           <a href="/sales/new">+ บันทึกการขาย</a>
+          <a href="/field-service">🚐 บริการนอกสถานที่ (Demo)</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/sharespace">🔗 ShareSpace</a>
@@ -130,6 +131,7 @@
   <div class="main-area">
     <div class="container">
     {% if user and user.role == 'customer' %}{% include '_customer_demo.html' %}{% endif %}
+    {% if user and user.role in ('admin', 'manager', 'technician_lead', 'technician', 'sales') %}{% include '_staff_demo.html' %}{% endif %}
     {% block content %}{% endblock %}
     </div>
   </div>

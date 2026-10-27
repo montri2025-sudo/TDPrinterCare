@@ -660,6 +660,8 @@
   // Small API for the guided tour (field-service-tour.js). Read/navigate only.
   window.FieldServiceDemo = {
     views: allowed.slice(),
+    current: function () { return current; },
+    label: function (view) { return VIEWS[view]; },
     show: function (view) { show(view, true); },
     openJob: openJob,
     closeDialogs: function () { $$('dialog[open]', root).forEach(function (d) { d.close(); }); },

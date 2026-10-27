@@ -3221,6 +3221,7 @@ FIELD_SERVICE_DEMO_VIEWS = {
     "manager": ["control", "tech", "customer", "route"],
     "technician_lead": ["control", "tech", "customer", "route"],
     "technician": ["tech", "route"],
+    "sales": ["control", "customer"],
 }
 
 

@@ -172,18 +172,22 @@
 .fsd-suggest { margin-top: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--brand, #216e61); }
 .fsd-suggest p { margin: 0 0 8px; }
 
-/* tour */
-.fsd-tour-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border, #c8d5df); background: var(--surface, #fff); }
-.fsd-tour-bar small { color: var(--muted, #536b7e); }
-.fsd-tour { position: fixed; right: 20px; bottom: 20px; z-index: 1200; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; max-height: 62vh; overflow: auto;
-  padding: 18px; border-radius: 16px; border: 1px solid var(--brand, #216e61); background: var(--surface, #fff); color: var(--ink, #1b2b3c); box-shadow: 0 14px 50px rgba(0,0,0,.35); }
-.fsd-tour header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted, #536b7e); }
-.fsd-tour h2 { font-size: 19px; margin: 10px 0; }
-.fsd-tour p { line-height: 1.75; margin: 0 0 12px; }
-.fsd-tour nav { display: flex; flex-wrap: wrap; gap: 6px; }
-.fsd-tour button { border: 1px solid var(--border, #c8d5df); background: var(--bg, #f3f6f9); color: var(--ink, #1b2b3c); border-radius: 9px; padding: 9px 12px; font: inherit; cursor: pointer; min-height: 40px; }
+/* tour — same look as the customer Virtual Office Demo (customer-demo.css) */
+.fsd-tour-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 14px 18px; margin-bottom: 18px; border: 1px solid var(--room-edge-3d6972, #3d6972); border-radius: 14px; background: var(--room-surface-172e3b, #172e3b); color: var(--room-text-e8f6fa, #e8f6fa); }
+.fsd-tour-bar label, .fsd-tour label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
+.fsd-tour-bar input, .fsd-tour input { width: auto; margin: 0; }
+.fsd-tour-bar small { color: var(--room-text-b6cfd5, #b6cfd5); }
+.fsd-tour-bar button, .fsd-tour button { border: 1px solid var(--room-edge-557d88, #557d88); border-radius: 9px; background: var(--room-surface-244956, #244956); color: var(--room-text-fff, #fff); padding: 10px 14px; cursor: pointer; font: inherit; min-height: 40px; }
+.fsd-tour { position: fixed; right: 22px; bottom: 22px; width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 22px; background: var(--room-surface-15303e, #15303e); color: var(--room-text-effcff, #effcff); border: 1px solid var(--room-edge-7eb4be, #7eb4be); border-radius: 18px; box-shadow: 0 12px 50px var(--room-edge-0006, #0006); z-index: 1200; max-height: 65vh; overflow: auto; }
+.fsd-tour header, .fsd-tour nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.fsd-tour header { color: var(--room-text-d0e3e9, #d0e3e9); font-size: 14px; }
+.fsd-tour h2 { color: var(--room-text-fff, #fff); font-size: 20px; margin: 16px 0; }
+.fsd-tour p { line-height: 1.8; color: var(--room-text-d0e3e9, #d0e3e9); margin: 0 0 14px; }
+.fsd-tour nav { margin-top: 18px; }
 .fsd-tour button:disabled { opacity: .45; cursor: default; }
-.fsd-tour-target { outline: 3px solid var(--amber-fg, #d97706) !important; outline-offset: 4px; border-radius: 10px; scroll-margin: 120px; }
+.fsd-tour .fsd-tour-restart { margin-top: 10px; width: 100%; background: transparent; }
+.fsd-tour-bar button:focus-visible, .fsd-tour button:focus-visible { outline: 3px solid #ffc967; outline-offset: 3px; }
+.fsd-tour-target { outline: 3px solid #35cbb3 !important; outline-offset: 4px; border-radius: 10px; scroll-margin: 120px; }
 .fsd-dialog[open]:not(:modal) { position: fixed; inset: 16px auto auto 50%; transform: translateX(-50%); z-index: 1100; margin: 0; overflow: auto; }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -208,6 +212,6 @@
   .fsd-stepper { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 10px; }
   .fsd-dl { grid-template-columns: minmax(0, 1fr); }
   .fsd-dl dt { margin-top: 6px; }
-  .fsd-tour { right: 8px; left: 8px; width: auto; bottom: 8px; max-height: 48vh; padding: 14px; }
+  .fsd-tour { right: 16px; bottom: 16px; padding: 16px; max-height: 50vh; }
   .fsd-move { margin-left: 0; }
 }

@@ -14,20 +14,22 @@
   </header>
 
   <div class="fsd-tour-bar" id="fsd-tour-bar" hidden>
-    <button type="button" class="btn small" id="fsd-tour-start">▶ เริ่ม Demo พร้อมเสียงบรรยาย</button>
-    <label class="fsd-inline"><input type="checkbox" id="fsd-tour-mute"> ปิดเสียงบรรยาย</label>
-    <small id="fsd-tour-note" aria-live="polite">กด “เริ่ม Demo” เพื่อฟังคำแนะนำทีละขั้น</small>
+    <button type="button" id="fsd-tour-start">▶ Demo แนะนำหน้านี้</button>
+    <label><input type="checkbox" id="fsd-tour-mute"> ปิดเสียงบรรยาย</label>
+    <label><input type="checkbox" id="fsd-tour-all" checked> เล่นต่อทุกแท็บ</label>
+    <small id="fsd-tour-note" aria-live="polite">กด “Demo แนะนำหน้านี้” เพื่อฟังคำแนะนำ พร้อมคำอธิบายบนจอ</small>
   </div>
   <aside class="fsd-tour" id="fsd-tour-panel" role="region" aria-labelledby="fsd-tour-title" hidden>
     <header><span id="fsd-tour-step"></span><button type="button" id="fsd-tour-close" aria-label="ปิด Demo">✕</button></header>
     <h2 id="fsd-tour-title"></h2>
     <p id="fsd-tour-text" aria-live="polite"></p>
+    <label><input type="checkbox" id="fsd-tour-panel-mute"> ปิดเสียงบรรยาย</label>
     <nav aria-label="ควบคุม Demo">
-      <button type="button" id="fsd-tour-prev">← ก่อนหน้า</button>
-      <button type="button" id="fsd-tour-pause">⏸ หยุดชั่วคราว</button>
+      <button type="button" id="fsd-tour-pause">พักเล่น</button>
+      <button type="button" id="fsd-tour-prev">← ย้อนกลับ</button>
       <button type="button" id="fsd-tour-next">ถัดไป →</button>
-      <button type="button" id="fsd-tour-restart">↺ เริ่มใหม่</button>
     </nav>
+    <button type="button" class="fsd-tour-restart" id="fsd-tour-restart">↺ เริ่มใหม่ตั้งแต่แท็บแรก</button>
   </aside>
 
   <div class="fsd-tabs" role="tablist" aria-label="มุมมองบริการนอกสถานที่" id="fsd-tabs"></div>
