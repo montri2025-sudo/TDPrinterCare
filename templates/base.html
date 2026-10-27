@@ -62,7 +62,7 @@
         {% if user.role == 'admin' %}
           <a href="/admin/dashboard">Dashboard</a>
           <a href="/admin/board">Virtual Office</a>
-          <a href="/field-service">🚐 บริการนอกสถานที่ (Demo)</a>
+          <a href="/field-service">🚐 บริการนอกสถานที่</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/admin/inventory">คลังสินค้า</a>
@@ -80,7 +80,7 @@
         {% elif user.role == 'manager' %}
           <a href="/manager/dashboard">Dashboard</a>
           <a href="/admin/board">Virtual Office</a>
-          <a href="/field-service">🚐 บริการนอกสถานที่ (Demo)</a>
+          <a href="/field-service">🚐 บริการนอกสถานที่</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/manager/approvals">อนุมัติเบิกอะไหล่</a>
@@ -95,7 +95,7 @@
         {% elif user.role == 'technician_lead' %}
           <a href="/tech/tasks">งานของฉัน</a>
           <a href="/admin/board">Virtual Office</a>
-          <a href="/field-service">🚐 บริการนอกสถานที่ (Demo)</a>
+          <a href="/field-service">🚐 บริการนอกสถานที่</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/tech/report">📊 รายงานของฉัน</a>
@@ -103,13 +103,13 @@
           <a href="/sharespace">🔗 ShareSpace</a>
         {% elif user.role == 'technician' %}
           <a href="/tech/tasks">งานของฉัน</a>
-          <a href="/field-service">🚐 บริการนอกสถานที่ (Demo)</a>
+          <a href="/field-service">🚐 บริการนอกสถานที่</a>
           <a href="/tech/report">📊 รายงานของฉัน</a>
           <a href="/sharespace">🔗 ShareSpace</a>
         {% elif user.role == 'sales' %}
           <a href="/sales/orders">รายการขาย</a>
           <a href="/sales/new">+ บันทึกการขาย</a>
-          <a href="/field-service">🚐 บริการนอกสถานที่ (Demo)</a>
+          <a href="/field-service">🚐 บริการนอกสถานที่</a>
           <a href="/admin/ticket/new">+ แจ้งซ่อมใหม่</a>
           <a href="/admin/customers">ลูกค้า/เครื่อง</a>
           <a href="/sharespace">🔗 ShareSpace</a>

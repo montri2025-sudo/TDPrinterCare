@@ -40,7 +40,7 @@ class TestFieldServiceDemo(fixtures.ApiTestCase):
         return office.TestVirtualOffice.request(self, *args, **kwargs)
 
     def page(self, user_id, method='GET'):
-        return self.request('/field-service', user_id=user_id, method=method, query='')
+        return self.request('/field-service/demo', user_id=user_id, method=method, query='')
 
     def config(self, html):
         return json.loads(re.search(r'id="fsd-config" type="application/json">(.*?)</script>', html, re.S).group(1))

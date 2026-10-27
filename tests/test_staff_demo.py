@@ -18,7 +18,7 @@ class TestStaffDemo(fixtures.ApiTestCase):
         super().setUp()
         self.tokens = []
         self.mutate("INSERT INTO Users (user_id,username,password,role,name,is_active) VALUES (99,'fictional-admin','fictional','admin','Fiction Admin',1)")
-        self.mutate("INSERT INTO Users (user_id,username,password,role,name,is_active) VALUES (98,'fictional-sales','fictional','sales','Fiction Sales',1)")
+        self.mutate("INSERT INTO Users (user_id,username,password,role,name,is_active,center_id) VALUES (98,'fictional-sales','fictional','sales','Fiction Sales',1,1)")
 
     def tearDown(self):
         for token in self.tokens:

@@ -34,6 +34,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 import db
 import integration_api
 import field_service_google
+import field_service
 import odoo_client
 
 BASE_DIR = os.path.dirname(__file__)
@@ -3225,13 +3226,125 @@ FIELD_SERVICE_DEMO_VIEWS = {
 }
 
 
-@route("GET", r"/field-service")
+@route("GET", r"/field-service/demo")
 def field_service_demo(environ, m, conn, user):
     require_login(user, *FIELD_SERVICE_DEMO_VIEWS.keys())
     views = FIELD_SERVICE_DEMO_VIEWS[user["role"]]
     return render("field_service_demo.html", user=user,
                   fsd_config={"views": views, "defaultView": views[0], "role": user["role"],
                               "google": field_service_google.page_config()})
+
+
+# Operational pages use persistent tables; the walkthrough remains isolated at /field-service/demo.
+def _fs_call(fn, *args):
+    try:
+        return fn(*args)
+    except field_service.Error as exc:
+        raise HttpError(exc.status, exc.message) from None
+
+
+def _fs_context(conn, user):
+    require_login(user, *field_service.ROLES)
+    _fs_call(field_service.authorize, user)
+    return {"fs_types":field_service.TYPES, "fs_labels":field_service.LABELS,
+            "can_coordinate":user['role'] in field_service.COORDINATORS}
+
+
+@route("GET", r"/field-service")
+def field_service_live(environ, m, conn, user):
+    ctx = _fs_context(conn,user)
+    jobs = _fs_call(field_service.listing,conn,user)
+    query = parse_qs(environ.get('QUERY_STRING',''))
+    q = (query.get('q',[''])[0] or '').strip()[:200]
+    status = query.get('status',[''])[0]
+    shown = [j for j in jobs if (not status or j['status']==status) and
+             (not q or q.casefold() in (' '.join(str(j.get(k) or '') for k in
+              ('job_id','customer_name','site','model','device_sn','tech_name'))).casefold())]
+    counts = {s:sum(1 for j in jobs if j['status']==s) for s in field_service.LABELS}
+    return render('field_service_live.html',user=user,view='list',jobs=shown,counts=counts,
+                  q=q,filter_status=status,today=field_service.now()[:10],**ctx)
+
+
+@route("GET", r"/field-service/new")
+def field_service_new(environ,m,conn,user):
+    ctx = _fs_context(conn,user)
+    if not ctx['can_coordinate']:
+        raise HttpError(403,'ไม่มีสิทธิ์สร้างใบงาน')
+    import uuid
+    customers,devices,centers,techs = _fs_call(field_service.options,conn,user)
+    return render('field_service_live.html',user=user,view='new',customers=customers,
+                  devices=devices,centers=centers,techs=techs,request_key=uuid.uuid4().hex,**ctx)
+
+
+@route("POST", r"/field-service/new")
+def field_service_create(environ,m,conn,user):
+    _fs_context(conn,user)
+    jid = _fs_call(field_service.create,conn,user,parse_post(environ))
+    raise Redirect('/field-service/jobs/'+jid+'?saved=1')
+
+
+@route("GET", r"/field-service/jobs/(FS-[a-f0-9]{32})")
+def field_service_detail(environ,m,conn,user):
+    ctx = _fs_context(conn,user)
+    job = _fs_call(field_service.get_job,conn,user,m.group(1))
+    techs = conn.execute("SELECT user_id,name FROM Users WHERE center_id=? AND is_active=1 "
+                         "AND role IN ('technician','technician_lead') ORDER BY name",(job['center_id'],)).fetchall()
+    transitions = field_service.TRANSITIONS[job['status']]
+    if user['role']=='sales':
+        transitions = [s for s in transitions if (job['status'],s) in
+                       (('requested','awaiting_schedule'),('awaiting_schedule','assigned'))]
+    if user['role']=='technician' and job['status'] in ('requested','awaiting_schedule'):
+        transitions = []
+    return render('field_service_live.html',user=user,view='detail',job=job,techs=techs,
+                  history=_fs_call(field_service.events,conn,job['job_id']),transitions=transitions,
+                  checklist=field_service.CHECKS[job['service_type']],checks=json.loads(job['checklist']),
+                  saved='saved=1' in environ.get('QUERY_STRING',''),**ctx)
+
+
+@route("POST", r"/field-service/jobs/(FS-[a-f0-9]{32})")
+def field_service_update(environ,m,conn,user):
+    _fs_context(conn,user)
+    _fs_call(field_service.update,conn,user,m.group(1),parse_post(environ))
+    raise Redirect('/field-service/jobs/'+m.group(1)+'?saved=1')
+
+
+@route("GET", r"/field-service/plans")
+def field_service_plan(environ,m,conn,user):
+    ctx = _fs_context(conn,user)
+    jobs = _fs_call(field_service.listing,conn,user)
+    where,args = ('',()) if user['role']=='admin' else (' WHERE center_id=?',(user['center_id'],))
+    centers = [dict(r) for r in conn.execute('SELECT center_id,name,latitude,longitude FROM Service_Centers'+where+' ORDER BY name',args).fetchall()]
+    tech_sql = "SELECT user_id,name,center_id FROM Users WHERE is_active=1 AND role IN ('technician','technician_lead')"
+    tech_args = ()
+    if user['role']!='admin':
+        tech_sql+=' AND center_id=?'; tech_args=(user['center_id'],)
+    if user['role']=='technician':
+        tech_sql+=' AND user_id=?'; tech_args+=(user['user_id'],)
+    techs = [dict(r) for r in conn.execute(tech_sql+' ORDER BY name',tech_args).fetchall()]
+    query = parse_qs(environ.get('QUERY_STRING',''))
+    center_id = query.get('center_id',[str(centers[0]['center_id']) if centers else ''])[0]
+    candidates = [t for t in techs if str(t['center_id'])==center_id]
+    tech_id = query.get('tech_id',[str(candidates[0]['user_id']) if candidates else ''])[0]
+    date = query.get('plan_date',[field_service.now()[:10]])[0]
+    plan = _fs_call(field_service.plan_data,conn,user,center_id,tech_id,date) if center_id and tech_id else None
+    pool = [j for j in jobs if str(j['center_id'])==center_id and str(j['assigned_tech_id'])==tech_id and
+            j['appointment_date']==date and j['status'] not in ('completed','returned_to_center')]
+    payload = json.loads(plan['payload']) if plan else {'order':[],'depart':'08:30','work_end':'17:30','end':'return'}
+    eligible = {j['job_id'] for j in pool}
+    stale = any(i not in eligible for i in payload['order'])
+    payload['order'] = [i for i in payload['order'] if i in eligible]
+    center = next((c for c in centers if str(c['center_id'])==center_id),None)
+    return render('field_service_live.html',user=user,view='plan',centers=centers,techs=techs,
+                  center_id=center_id,tech_id=tech_id,plan_date=date,plan=plan,stale=stale,
+                  plan_config={'jobs':pool,'center':center,'payload':payload},**ctx)
+
+
+@route("POST", r"/field-service/plans")
+def field_service_plan_save(environ,m,conn,user):
+    _fs_context(conn,user)
+    form = parse_post(environ)
+    _fs_call(field_service.save_plan,conn,user,form)
+    raise Redirect('/field-service/plans?'+urlencode({k:form[k] for k in ('center_id','tech_id','plan_date')}))
 
 
 @route("GET", r"/customer/office")

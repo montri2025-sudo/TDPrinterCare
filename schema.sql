@@ -89,6 +89,58 @@ CREATE TABLE IF NOT EXISTS Devices (
 );
 
 -- ---------------------------------------------------------- บำรุงรักษา --
+-- Field service: persistent operational records, separate from browser-only examples.
+CREATE TABLE IF NOT EXISTS Field_Service_Jobs (
+    job_id VARCHAR(40) PRIMARY KEY,
+    center_id INT NOT NULL REFERENCES Service_Centers(center_id),
+    customer_id INT NOT NULL REFERENCES Customers(customer_id),
+    device_sn VARCHAR(64) NOT NULL REFERENCES Devices(device_sn),
+    service_type VARCHAR(20) NOT NULL CHECK (service_type IN ('install','inspection','repair','maintenance')),
+    site TEXT NOT NULL,
+    address TEXT NOT NULL,
+    contact_name TEXT NOT NULL,
+    contact_phone TEXT NOT NULL,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    symptom TEXT NOT NULL,
+    appointment_date TEXT,
+    start_time VARCHAR(5),
+    end_time VARCHAR(5),
+    service_minutes INT NOT NULL DEFAULT 60 CHECK (service_minutes BETWEEN 5 AND 1440),
+    assigned_tech_id INT REFERENCES Users(user_id),
+    status VARCHAR(30) NOT NULL DEFAULT 'requested' CHECK (status IN
+      ('requested','awaiting_schedule','assigned','preparing','traveling','in_service','awaiting_acceptance','completed','waiting_parts','returned_to_center')),
+    report TEXT NOT NULL DEFAULT '',
+    checklist TEXT NOT NULL DEFAULT '{}',
+    version INT NOT NULL DEFAULT 1,
+    created_by INT NOT NULL REFERENCES Users(user_id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_fs_jobs_center_date ON Field_Service_Jobs(center_id, appointment_date);
+CREATE INDEX IF NOT EXISTS idx_fs_jobs_tech ON Field_Service_Jobs(assigned_tech_id);
+CREATE TABLE IF NOT EXISTS Field_Service_History (
+    event_id VARCHAR(40) PRIMARY KEY,
+    job_id VARCHAR(40) NOT NULL REFERENCES Field_Service_Jobs(job_id),
+    from_status VARCHAR(30),
+    to_status VARCHAR(30) NOT NULL,
+    note TEXT NOT NULL,
+    changed_by INT NOT NULL REFERENCES Users(user_id),
+    changed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_fs_history_job ON Field_Service_History(job_id, changed_at);
+CREATE TABLE IF NOT EXISTS Field_Service_Plans (
+    plan_id VARCHAR(40) PRIMARY KEY,
+    center_id INT NOT NULL REFERENCES Service_Centers(center_id),
+    tech_id INT NOT NULL REFERENCES Users(user_id),
+    plan_date TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    version INT NOT NULL DEFAULT 1,
+    updated_by INT NOT NULL REFERENCES Users(user_id),
+    updated_at TEXT NOT NULL,
+    UNIQUE (center_id, tech_id, plan_date)
+);
+
 -- แผนบำรุงรักษา (Maintenance Scheduler) — งานบำรุงรักษาที่ต้องทำเป็นระยะ กำหนดโดยแอดมิน
 -- ผูกกับประเภทเครื่อง (NULL = ใช้กับทุกประเภท) รอบคำนวณได้ 2 แบบ: ตามวัน (สัปดาห์/เดือน) หรือตามชั่วโมงใช้งานสะสม
 CREATE TABLE IF NOT EXISTS Maintenance_Plan_Items (

@@ -134,6 +134,12 @@
     ],
   };
 
+  PAGES['/field-service'] = [
+    step('#field-service-live h1', 'บริการนอกสถานที่', 'หน้านี้แสดงใบงานจริงตามสิทธิ์และสาขาของคุณ คู่มือแนะนำจะไม่บันทึกหรือเปลี่ยนสถานะงานแทนคุณ'),
+    step('.fsl .fsd-summary, .fsl .fsd-card', 'คิวนัดหมายและสถานะ', 'ตรวจวันนัด ลูกค้า เครื่อง และช่าง เปิดใบงานเพื่อบันทึกรายงานและทำงานตามขั้นตอน'),
+    step('.fsl .fsd-head nav', 'สร้างใบงานและวางแผน', 'ผู้ประสานงานสร้างใบงานและมอบหมายช่างได้ เลือกแผนการเดินทางเพื่อเรียงจุดแวะ และกดบันทึกด้วยตนเองเมื่อพร้อม'),
+  ];
+
   // Sidebar order for this role, without the guide; only menus that have a tour (or the field-service tab tour).
   const menu = Array.prototype.map.call(document.querySelectorAll('.sidebar nav a'), function (a) { return a.getAttribute('href'); })
     .filter(function (href, i, all) { return href && all.indexOf(href) === i && !/^\/guide/.test(href) && (PAGES[href] || href === '/field-service'); });
@@ -142,8 +148,8 @@
   function nextMenu() { const i = menu.indexOf(path); return i >= 0 && i < menu.length - 1 ? menu[i + 1] : null; }
   function goNext() { const next = nextMenu(); if (!next) return false; store('staff-demo-resume', next); location.assign(next); return true; }
 
-  // /field-service has its own tab-by-tab tour; when we arrive there while continuing, run it and then move on.
-  if (path === '/field-service') {
+  // The isolated example page retains its own tab tour. Operational pages use read-only instructions.
+  if (path === '/field-service/demo') {
     el('bar').hidden = true;
     if (stored('staff-demo-resume') === path) {
       store('staff-demo-resume', '');

@@ -99,16 +99,14 @@ test('mute uses captions without substitute voice; pause, hidden tab, close and 
   assert.equal(r.pending.size, 0);
 });
 
-test('continuing into บริการนอกสถานที่ hands over to its tab tour, then moves to the next menu', async () => {
-  let done = null;
+test('operational field service uses read-only instructions, never the simulated tab tour', async () => {
   const storage = new Map([['staff-demo-resume', '/field-service']]);
-  const env = setup({ path: '/field-service', storage, fieldTour: { startAll: (cb) => { done = cb; } } });
-  assert.equal(env.node('staff-demo-bar').hidden, true);
-  assert.equal(typeof done, 'function');
-  done();
+  const env = setup({ path: '/field-service', storage, fieldTour: { startAll: () => assert.fail('must not open simulated data') } });
+  await env.flush();
+  assert.equal(env.node('staff-demo-panel').hidden, false);
+  assert.equal(env.node('staff-demo-step').textContent, 'สาธิต 1 / 3');
+  for (let i=0; i<3; i++) { env.audios.at(-1).onended(); env.fire(); await env.flush(); }
   assert.deepEqual(env.navigations, ['/admin/ticket/new']);
-  const plain = setup({ path: '/field-service', fieldTour: { startAll: () => assert.fail('should not auto-start') } });
-  assert.deepEqual(plain.navigations, []);
 });
 
 test('the Demo never submits, clicks or posts', () => {
