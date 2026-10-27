@@ -53,7 +53,10 @@ class TestFieldServiceLive(fixtures.ApiTestCase):
             self.assertNotIn('sessionStorage',html)
         self.assertEqual(self.request('/field-service',user_id=20)[0],403)
         self.assertEqual(self.request('/field-service',user_id=None)[0],302)
-        self.assertIn('Demo / ข้อมูลจำลอง',self.request('/field-service/demo',user_id=99)[2])
+        status,headers,_=self.request('/field-service/demo',user_id=99)
+        self.assertEqual(status,302)
+        self.assertEqual(headers['Location'],'/field-service')
+        self.assertNotIn('href="/field-service/demo"',self.request('/field-service',user_id=99)[2])
 
     def test_create_persists_duplicate_form_and_validates_owner_branch_tech(self):
         f=self.form()

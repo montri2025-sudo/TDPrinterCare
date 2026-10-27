@@ -1,16 +1,14 @@
-"""Generate Thai narration for the staff Demos (field-service tabs + every staff menu), locally and offline.
+"""Generate Thai narration for the read-only staff guide, including operational field service, offline.
 
-Same method as tools/make-customer-demo-voice.py (PrintScape VoxCPM2 install + the owner's
-authorized reference recording), but reads the step(...) lines of static/field-service-tour.js
--> static/field-service-voice/ and of static/staff-demo.js -> static/staff-demo-voice/. The reference recording, model files and WAVs stay
-in ignored artifacts/; nothing is uploaded anywhere.
+Same owner-authorized voice as the existing customer Demo. Reads the fixed step(...)
+instructions in static/staff-demo.js. Reference audio and intermediate data stay in ignored artifacts/. Nothing is uploaded.
 
 Usage (on the owner's Mac):
   <PrintScape voice venv>/bin/python tools/make-field-service-voice.py \
       --reference artifacts/customer-voice/reference.wav
   add --dry-run to only list which lines would be generated / removed.
 """
-import argparse, gc, hashlib, inspect, json, os, re, subprocess, time
+import argparse, gc, hashlib, json, os, re, subprocess, time
 from pathlib import Path
 
 os.environ.setdefault('HF_HUB_OFFLINE', '1')
@@ -23,7 +21,6 @@ WORK = ROOT / 'artifacts/field-service-voice'
 REFERENCE_TEXT = 'สวัสดีครับ ยินดีต้อนรับสู่ร้านพิมพ์สามมิติของเรา วันนี้ผมจะพาไปดูการทำงาน ตั้งแต่รับออเดอร์ เตรียมไฟล์ พิมพ์ชิ้นงาน ตรวจคุณภาพ จนส่งถึงมือลูกค้าครับ'
 TARGETS = [
     # (source script, regex capturing the narration text, output folder)
-    (ROOT / 'static/field-service-tour.js', re.compile(r"step\('[^']*', '[^']*', '[^']*', '([^']*)'\)"), ROOT / 'static/field-service-voice'),
     (ROOT / 'static/staff-demo.js', re.compile(r"step\('[^']*', '[^']*', '([^']*)'\)"), ROOT / 'static/staff-demo-voice'),
 ]
 
@@ -63,6 +60,10 @@ def main():
         for t in stale:                      # never keep narration that describes something else
             (out / manifest.pop(t)).unlink(missing_ok=True)
         write_manifest(out, manifest)
+        # Finish the operational field-service guide first; resume all other menus afterward.
+        field_section = source.read_text(encoding='utf-8').split("PAGES['/field-service'] = [", 1)
+        priority = regex.findall(field_section[1].split('];', 1)[0]) if len(field_section) > 1 else []
+        todo.sort(key=lambda t: t not in priority)
         jobs += [(out, manifest, t) for t in todo]
     if args.dry_run or not jobs:
         return
@@ -81,14 +82,20 @@ def main():
     config['max_length'] = 2048
     (compact / 'config.json').write_text(json.dumps(config))
     model = VoxCPM.from_pretrained(str(compact), load_denoiser=False, optimize=False)
-    allowed = inspect.signature(model._generate if hasattr(model, '_generate') else model.generate).parameters
+    # Encode the same authorized reference once, rather than re-encoding it for every line.
+    # Public VoxCPM2 prompt-cache API uses the same inference path as model.generate().
+    np.random.seed(42); torch.manual_seed(42)
+    prompt_cache = model.tts_model.build_prompt_cache(
+        prompt_text=REFERENCE_TEXT, prompt_wav_path=str(reference), reference_wav_path=str(reference))
+    print('Reference encoded once; generating all instructions with the same voice', flush=True)
     for index, (out, manifest, text) in enumerate(jobs, 1):
         started = time.time()
         np.random.seed(42); torch.manual_seed(42)
-        options = dict(text=text, prompt_wav_path=str(reference), prompt_text=REFERENCE_TEXT,
-                       reference_wav_path=str(reference), cfg_value=2.0, inference_timesteps=10,
-                       normalize=False, denoise=False, retry_badcase=True, max_len=1024)
-        wav = model.generate(**{k: v for k, v in options.items() if k in allowed})
+        audio, _, _ = model.tts_model.generate_with_prompt_cache(
+            target_text=text, prompt_cache=prompt_cache, cfg_value=2.0,
+            inference_timesteps=10, retry_badcase=True, max_len=1024)
+        wav = audio.squeeze(0).cpu().numpy()
+        del audio
         name = hashlib.sha256(text.encode()).hexdigest()[:16]
         temp = WORK / (name + '.wav')
         sf.write(temp, wav, model.tts_model.sample_rate, subtype='PCM_16')

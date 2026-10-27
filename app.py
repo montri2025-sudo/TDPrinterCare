@@ -33,7 +33,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import db
 import integration_api
-import field_service_google
 import field_service
 import odoo_client
 
@@ -3214,28 +3213,14 @@ def admin_board(environ, m, conn, user):
                   date_from=from_display, date_to=to_display)
 
 
-# ---------------------------------------------- บริการนอกสถานที่ (Demo) --
-# Demo only: renders a page whose data is entirely fictional and lives in static/field-service-data.js.
-# No database query, no POST route, no stock/quotation/invoice/notification side effects.
-FIELD_SERVICE_DEMO_VIEWS = {
-    "admin": ["control", "tech", "customer", "route"],
-    "manager": ["control", "tech", "customer", "route"],
-    "technician_lead": ["control", "tech", "customer", "route"],
-    "technician": ["tech", "route"],
-    "sales": ["control", "customer"],
-}
-
-
+# The old example URL cannot render or seed fictional records.
 @route("GET", r"/field-service/demo")
-def field_service_demo(environ, m, conn, user):
-    require_login(user, *FIELD_SERVICE_DEMO_VIEWS.keys())
-    views = FIELD_SERVICE_DEMO_VIEWS[user["role"]]
-    return render("field_service_demo.html", user=user,
-                  fsd_config={"views": views, "defaultView": views[0], "role": user["role"],
-                              "google": field_service_google.page_config()})
+def field_service_example_redirect(environ,m,conn,user):
+    require_login(user,*field_service.ROLES)
+    raise Redirect('/field-service')
 
 
-# Operational pages use persistent tables; the walkthrough remains isolated at /field-service/demo.
+# Operational pages use persistent records; the read-only staff guide does not create sample data.
 def _fs_call(fn, *args):
     try:
         return fn(*args)
@@ -8659,10 +8644,6 @@ def application(environ, start_response):
         sess = SESSIONS.get(token) if token else None
         _csrf_ctx.set(sess["csrf_token"] if sess else None)
         _notif_ctx.set(_unread_notification_count(conn, user) if user else 0)
-
-        if path.startswith("/field-service/google/") and method == "GET":
-            # Demo: Google Routes proxy (server-side key, fictional points only) — see field_service_google.py
-            return field_service_google.handle(path, environ, user, start_response, FIELD_SERVICE_DEMO_VIEWS)
 
         if path.startswith("/media/") and method == "GET":
             return serve_media(path, conn, user, start_response)

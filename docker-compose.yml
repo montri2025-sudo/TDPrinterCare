@@ -114,7 +114,7 @@ services:
       - INTEGRATION_API_CLOSED_WINDOW_DAYS=${INTEGRATION_API_CLOSED_WINDOW_DAYS:-}
       - INTEGRATION_API_RATE_LIMIT_PER_MIN=${INTEGRATION_API_RATE_LIMIT_PER_MIN:-}
       - INTEGRATION_API_AUTH_FAIL_LIMIT_PER_MIN=${INTEGRATION_API_AUTH_FAIL_LIMIT_PER_MIN:-}
-      # Demo บริการนอกสถานที่: Google Routes/Maps (ไม่บังคับ เว้นว่าง = ใช้ค่าประมาณจำลอง) ดู docs/field-service-demo.md
+      # ค่าเดิมที่สงวนไว้: ปิด proxy ตัวอย่างแล้ว แผนเดินทางจริงใช้ค่าประมาณในเครื่อง
       - GOOGLE_ROUTES_API_KEY=${GOOGLE_ROUTES_API_KEY:-}
       - GOOGLE_MAPS_BROWSER_KEY=${GOOGLE_MAPS_BROWSER_KEY:-}
       - GOOGLE_MAPS_MAP_ID=${GOOGLE_MAPS_MAP_ID:-}

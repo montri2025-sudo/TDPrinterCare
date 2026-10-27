@@ -148,21 +148,6 @@
   function nextMenu() { const i = menu.indexOf(path); return i >= 0 && i < menu.length - 1 ? menu[i + 1] : null; }
   function goNext() { const next = nextMenu(); if (!next) return false; store('staff-demo-resume', next); location.assign(next); return true; }
 
-  // The isolated example page retains its own tab tour. Operational pages use read-only instructions.
-  if (path === '/field-service/demo') {
-    el('bar').hidden = true;
-    if (stored('staff-demo-resume') === path) {
-      store('staff-demo-resume', '');
-      const tryStart = function (n) {
-        const t = window.FieldServiceTour;
-        if (t && t.startAll) t.startAll(function () { goNext(); });
-        else if (n < 40) setTimeout(function () { tryStart(n + 1); }, 50);
-      };
-      tryStart(0);
-    }
-    window.StaffDemo = { menu: menu, pages: PAGES };
-    return;
-  }
   const steps = PAGES[path] || [];
   window.StaffDemo = { menu: menu, pages: PAGES };
   if (!steps.length) return;
