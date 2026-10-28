@@ -30,20 +30,43 @@
   centers.forEach((name, id) => option(el('office-center'), name, id));
   technicians.forEach((name, id) => option(el('office-tech'), name, id));
 
-  // Fixed-size SVG office; no polling or renderer loop. Existing authorized dialog handles all writes.
-  let sceneZoom = 1;
+  // Both renderers consume the same authorized snapshot. All writes stay in the existing dialog.
+  let sceneZoom = 1, sceneMode = '3d', scene3D = null, scene3DLoading = false, latestScene = null;
+  let sceneMotionPaused = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const openSceneTicket = (ticket, trigger) => {
+    const desk = document.querySelector('.office-desk[data-ticket-id="'+ticket.ticket_id+'"]');
+    if (desk) openTicket(desk, trigger);
+  };
+  function setSceneMode(mode, message) {
+    sceneMode = mode;
+    const active3D = mode === '3d' && !!scene3D;
+    if (el('office-3d')) el('office-3d').hidden = !active3D;
+    el('office-scene').toggleAttribute('hidden', active3D);
+    if (scene3D) scene3D.setVisible(active3D && !document.hidden && !dialog.open);
+    ['3d','2d'].forEach(v => { if(el('office-mode-'+v)) el('office-mode-'+v).setAttribute('aria-pressed', String(v===mode)); });
+    if (el('office-render-note')) el('office-render-note').textContent = message || (active3D ? 'ลากเพื่อหมุนห้อง · ใช้ปุ่มลูกศรเมื่อโฟกัสฉาก' : mode==='3d' ? 'กำลังเตรียมสำนักงาน 3D · แสดงภาพเดิมระหว่างรอ' : 'โหมดภาพสำนักงาน · คลิกป้ายเลขงานเพื่อดูรายละเอียด');
+  }
   function drawOfficeScene(tickets) {
     const svg = el('office-scene');
     if (!svg || !window.ServiceOfficeScene) return;
-    window.ServiceOfficeScene.render(svg, {
-      tickets, statuses:data.statuses, labels:data.labels, stage, zoom:sceneZoom, readOnly,
-      onStage:chooseStage,
-      onTicket:(ticket, trigger) => {
-        const desk = document.querySelector('.office-desk[data-ticket-id="'+ticket.ticket_id+'"]');
-        if (desk) openTicket(desk, trigger);
-      }
-    });
+    latestScene = {tickets, statuses:data.statuses, labels:data.labels, stage, zoom:sceneZoom, readOnly};
+    if (sceneMode === '2d' || !scene3D) window.ServiceOfficeScene.render(svg, {...latestScene, onStage:chooseStage, onTicket:openSceneTicket});
+    if (sceneMode !== '3d' || !el('office-3d')) return;
+    if (scene3D) { scene3D.update(latestScene); setSceneMode('3d'); return; }
+    if (scene3DLoading) return;
+    scene3DLoading = true;
+    import(el('office-3d').dataset.module).then(module => {
+      if (sceneMode !== '3d') return;
+      scene3D = module.createOffice3D(el('office-3d'), {
+        onStage:chooseStage, onTicket:openSceneTicket,
+        onUnavailable:() => { setSceneMode('2d','3D หยุดทำงาน · เปลี่ยนเป็นภาพสำนักงานให้แล้ว'); if(scene3D){scene3D.dispose();scene3D=null;} drawOfficeScene(latestScene.tickets); }
+      });
+      scene3D.setPaused(sceneMotionPaused);
+      setSceneMode('3d'); scene3D.update(latestScene);
+    }).catch(error => { console.warn('[office-3d] Unable to initialize', error); if (scene3D) { scene3D.dispose(); scene3D=null; } setSceneMode('2d','เครื่องนี้เปิด 3D ไม่ได้ · ใช้ภาพสำนักงานแทนได้ตามปกติ'); })
+      .finally(() => {scene3DLoading=false;});
   }
+  ['3d','2d'].forEach(mode => {if(el('office-mode-'+mode)) el('office-mode-'+mode).addEventListener('click',()=>{setSceneMode(mode);if(latestScene)drawOfficeScene(latestScene.tickets);});});
   function sceneSummary(tickets) {
     const uniqueMachines=items=>new Set(items.map(t=>t.device_sn)).size;
     const reception=tickets.filter(t=>t.status==='New');
@@ -136,20 +159,22 @@
   });
   el('office-refresh').addEventListener('click', () => window.location.reload());
   el('office-front-filter').addEventListener('click', () => chooseStage('New'));
-  function zoomScene(delta) { sceneZoom = Math.max(.75, Math.min(1.5, sceneZoom + delta)); applyFilters(); }
+  function zoomScene(delta) { if(sceneMode==='3d'&&scene3D){scene3D.zoom(delta);return;} sceneZoom = Math.max(.75, Math.min(1.5, sceneZoom + delta)); applyFilters(); }
   el('office-zoom-in').addEventListener('click', () => zoomScene(.15));
   el('office-zoom-out').addEventListener('click', () => zoomScene(-.15));
-  el('office-zoom-reset').addEventListener('click', () => {sceneZoom = 1; applyFilters();});
+  el('office-zoom-reset').addEventListener('click', () => {if(sceneMode==='3d'&&scene3D){scene3D.reset();return;}sceneZoom = 1; applyFilters();});
   const motionButton = el('office-motion');
   if (motionButton) {
-    let paused = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let paused = sceneMotionPaused;
     const updateMotion = () => {
+      sceneMotionPaused = !!paused;
       el('office-scene').classList.toggle('scene-static', !!paused);
+      if(scene3D)scene3D.setPaused(!!paused);
       motionButton.setAttribute('aria-pressed', String(!!paused));
       motionButton.textContent = paused ? '▶ การเคลื่อนไหว' : 'Ⅱ หยุดภาพเคลื่อนไหว';
     };
     motionButton.addEventListener('click', () => { paused = !paused; updateMotion(); });
-    document.addEventListener('visibilitychange', () => el('office-scene').classList.toggle('scene-hidden', document.hidden));
+    document.addEventListener('visibilitychange', () => {el('office-scene').classList.toggle('scene-hidden', document.hidden);if(scene3D)scene3D.setVisible(!document.hidden&&sceneMode==='3d'&&!dialog.open);});
     updateMotion();
   }
 
@@ -254,6 +279,7 @@
       history.appendChild(item);
     });
     changeSummary();
+    if(scene3D)scene3D.setVisible(false);
     dialog.showModal();
     dialog.querySelector('.office-detail-body').scrollTop = 0;
   }
@@ -270,7 +296,9 @@
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
     }
   });
-  dialog.addEventListener('close', () => { if (openingButton) openingButton.focus(); });
+  dialog.addEventListener('close', () => { if(scene3D)scene3D.setVisible(sceneMode==='3d'&&!document.hidden); if (openingButton) openingButton.focus(); });
+  window.addEventListener('pagehide', () => {if(scene3D){scene3D.dispose();scene3D=null;}});
+  window.addEventListener('pageshow', event => {if(event.persisted&&latestScene)drawOfficeScene(latestScene.tickets);});
   if (form) form.addEventListener('submit', event => {
     if (submitting || el('office-save').disabled) { event.preventDefault(); return; }
     submitting = true;

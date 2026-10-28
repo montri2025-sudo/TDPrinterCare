@@ -4,6 +4,7 @@
 {% block extra_head %}
 <link rel="stylesheet" href="/static/virtual-office.css?v={{ asset_v('virtual-office.css') }}">
 <link rel="stylesheet" href="/static/virtual-office-scene.css?v={{ asset_v('virtual-office-scene.css') }}">
+<script src="/static/office-3d-core.js?v={{ asset_v('office-3d-core.js') }}" defer></script>
 <script src="/static/service-office-scene.js?v={{ asset_v('service-office-scene.js') }}" defer></script>
 <script src="/static/virtual-office.js?v={{ asset_v('virtual-office.js') }}" defer></script>
 {% endblock %}
@@ -71,8 +72,9 @@
   <div class="office-operations">
     <div class="office-scene-panel">
       <div class="office-scene-topbar"><span><i></i> SERVICE STUDIO <b>{{ 'เครื่องของคุณในแต่ละขั้นตอน' if customer_mode else 'แผนผังสถานะงานซ่อม' }}</b></span><span>{{ 'เฉพาะงานของบัญชีคุณ' if customer_mode else 'ข้อมูลจริงในช่วงวันที่และตัวกรองที่เลือก' }}</span></div>
-      <div class="office-scene-viewport"><svg id="office-scene" viewBox="0 0 1200 900" role="group" aria-label="สำนักงานบริการ คลิกป้ายห้องหรือเลขงานเพื่อเปิดรายละเอียด"><title>แผนผังร้าน Virtual Office</title></svg></div>
-      <div class="office-motion-bar"><span>ฉากประกอบ · ป้ายเลขงานและชื่อช่างอ้างอิงข้อมูลจริง</span><button type="button" id="office-motion" aria-pressed="false">Ⅱ หยุดภาพเคลื่อนไหว</button></div>
+      <div class="office-view-controls" role="group" aria-label="รูปแบบสำนักงาน"><button type="button" id="office-mode-3d" aria-pressed="true">สำนักงาน 3D</button><button type="button" id="office-mode-2d" aria-pressed="false">ภาพสำนักงาน</button><span id="office-render-note" role="status">กำลังเตรียมสำนักงาน 3D · แสดงภาพเดิมระหว่างรอ</span></div>
+      <div class="office-scene-viewport"><div id="office-3d" data-module="/static/service-office-3d.js?v={{ asset_v('service-office-3d.js') }}" hidden></div><svg id="office-scene" viewBox="0 0 1200 900" role="group" aria-label="สำนักงานบริการ คลิกป้ายห้องหรือเลขงานเพื่อเปิดรายละเอียด"><title>แผนผังร้าน Virtual Office</title></svg></div>
+      <div class="office-motion-bar"><span>ลากเพื่อหมุน · สองนิ้วเพื่อซูม · การเดินเป็นภาพประกอบตามงานที่มอบหมาย</span><button type="button" id="office-motion" aria-pressed="false">Ⅱ หยุดภาพเคลื่อนไหว</button></div>
       <div class="office-scene-bottom"><span><i class="legend-dot"></i> งานในระบบ <i class="legend-dot amber"></i> รอดำเนินการ <i class="legend-dot teal"></i> ซ่อม / ทดสอบ <i class="legend-dot violet"></i> ส่งมอบ</span><div><button type="button" id="office-zoom-in" aria-label="ขยายแผนผัง">＋</button><button type="button" id="office-zoom-out" aria-label="ย่อแผนผัง">−</button><button type="button" id="office-zoom-reset" aria-label="คืนขนาดแผนผัง">↺</button></div></div>
     </div>
     <aside class="office-shop-panel" aria-label="หน้าร้านและการจัดส่ง">

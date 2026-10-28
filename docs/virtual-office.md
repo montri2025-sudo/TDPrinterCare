@@ -113,3 +113,28 @@ keyboard actions, literal text, pending dispatch and bounded rendering of 1,000 
 (maximum 24 job pins / 12 technician figures). Browser checks cover station filtering,
 motion controls and light/dark themes. Visual layout fixtures are exported separately under
 ignored artifacts and are never seeded into operational data.
+
+## Interactive 3D office
+
+The default board now lazy-loads a same-origin Three.js 0.186.1 scene. Users can orbit,
+zoom, reset the camera, open native job buttons and switch to the existing illustrated
+view. WebGL initialization/context failures fall back to the illustration. No CDN,
+new API, database change, status inference or automatic stock/Odoo write is involved.
+
+Six stations use the same authorized filtered ticket snapshot and existing detail/save
+flow. Up to 24 printer/job markers and 12 assigned technician figures are rendered;
+summary totals still count all matching records. Technician movement is symbolic,
+not location tracking: figures walk along the aisle between assigned workstations.
+Empty datasets create no fictional workers or tickets.
+
+Rendering is capped near 30 fps and pixel ratio 1.5. Hidden/offscreen scenes stop;
+reduced-motion preferences and the pause control stop walking. Static scenes stop
+requesting frames once camera damping settles. Keyboard camera controls and native
+job buttons remain available. Three.js sources are vendored with MIT attribution;
+the two build modules are minified to about 748 KiB combined.
+
+Verification: 32 Node tests cover both renderers/core routing and existing tours;
+Python regression tests cover the unchanged authorization and ticket update flows.
+A separate ignored browser fixture exercises walking and opening job details without
+seeding operational records. The earlier no-render-loop statement applies to the
+illustrated view only.
