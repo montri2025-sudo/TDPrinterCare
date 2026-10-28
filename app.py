@@ -2836,7 +2836,7 @@ def admin_dashboard(environ, m, conn, user):
                         SELECT dd.device_sn FROM Devices dd JOIN Customers cc ON cc.customer_id = dd.customer_id
                         WHERE cc.name = ?
                     )
-               WHERE u.role IN ('technician','technician_lead') AND u.center_id = ? GROUP BY u.user_id, u.name, sc.name""",
+               WHERE u.is_active = 1 AND u.role IN ('technician','technician_lead') AND u.center_id = ? GROUP BY u.user_id, u.name, sc.name""",
             (EXCLUDED_CASE_COUNT_CUSTOMER_NAME, scope_center),
         ).fetchall()
         low_stock = conn.execute(
@@ -2870,7 +2870,7 @@ def admin_dashboard(environ, m, conn, user):
                         SELECT dd.device_sn FROM Devices dd JOIN Customers cc ON cc.customer_id = dd.customer_id
                         WHERE cc.name = ?
                     )
-               WHERE u.role IN ('technician','technician_lead') GROUP BY u.user_id, u.name, sc.name""",
+               WHERE u.is_active = 1 AND u.role IN ('technician','technician_lead') GROUP BY u.user_id, u.name, sc.name""",
             (EXCLUDED_CASE_COUNT_CUSTOMER_NAME,),
         ).fetchall()
         low_stock = conn.execute(

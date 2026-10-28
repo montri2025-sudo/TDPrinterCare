@@ -57,3 +57,29 @@ class TestMonitorRoom(fixtures.ApiTestCase):
 
     def test_customer_cannot_view_business_monitor_room(self):
         self.assertEqual(self.request(user_id=20)[0],403)
+
+    def test_suspended_technicians_are_hidden_from_current_workload(self):
+        for user_id, query in [(99, ''), (99, 'center_id=1'), (21, 'center_id=2')]:
+            with self.subTest(user_id=user_id, query=query):
+                status, _, html = self.request(user_id=user_id, query=query)
+                self.assertEqual(status, 200)
+                workload = {w['name']: w['count'] for w in self.payload(html)['workload']}
+                self.assertNotIn('Inactive With Job', workload)
+                self.assertNotIn('Inactive No Job', workload)
+                self.assertEqual(workload['Alex Tester'], 1)
+                self.assertEqual(workload['Lead Tester'], 1)
+                self.assertEqual(workload['Idle Tester'], 0)
+                table = html.split('ภาระงานของช่าง (ตั๋วที่ยังไม่ปิด)', 1)[1].split('</table>', 1)[0]
+                self.assertNotIn('Inactive With Job', table)
+                self.assertNotIn('Inactive No Job', table)
+
+    def test_suspension_updates_workload_without_deleting_tickets(self):
+        self.mutate("UPDATE Users SET is_active=0 WHERE user_id=11")
+        status, _, html = self.request()
+        self.assertEqual(status, 200)
+        self.assertNotIn('Alex Tester', [w['name'] for w in self.payload(html)['workload']])
+        self.assertEqual(sum(self.payload(html)['statusCounts']), 10)
+        self.mutate("UPDATE Users SET is_active=1 WHERE user_id=11")
+        status, _, html = self.request()
+        self.assertEqual(status, 200)
+        self.assertEqual({w['name']: w['count'] for w in self.payload(html)['workload']}['Alex Tester'], 1)
