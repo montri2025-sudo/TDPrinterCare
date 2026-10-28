@@ -79,3 +79,4 @@ body.office-mode { --bg:var(--room-surface-0c1622, #0c1622); --surface:var(--roo
 .office-3d-station { position:absolute; transform:translate(-50%,-100%); display:flex; flex-direction:column; align-items:center; gap:4px; }
 .office-3d-station button { position:static; transform:none !important; }
 .office-3d-job-list { display:grid; grid-template-columns:repeat(2,max-content); gap:3px; justify-content:center; }
+.office-3d-scenery { position:absolute; transform:translate(-50%,-100%); padding:5px 8px; border:1px solid #b7985c; border-radius:7px; background:#fff5dfee; color:#584b32; font-size:10px; white-space:nowrap; pointer-events:none; }
