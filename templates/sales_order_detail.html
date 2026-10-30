@@ -10,6 +10,21 @@
 <form method="post" action="/sales/order/{{ order.order_id }}/odoo-quotation"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn small" type="submit">ซิงก์เป็นใบเสนอราคาร่างใน Odoo</button></form></div>
 {% endif %}
 
+{% if order.payment_confirmed_at and not order.cancelled_at %}
+<div class="card"><h2>ใบรับประกันเครื่องพิมพ์ 1 ปี</h2><p class="hint">ออกแยกรายเครื่องสำหรับ FDM และเรซิน ระบุ Serial จริงก่อนออกเอกสาร วันที่เริ่มประกันอ้างอิงวันที่ซื้อในบิล ลูกค้าที่ผูกบัญชีจะเปิดดูได้ในเมนูใบรับประกันสินค้า</p>
+{% for item in items if item.category in ('FDM_Printer', 'Resin_Printer') %}
+<h3>{{ item.part_name }}</h3>
+{% for unit in range(1, item.quantity + 1) %}
+{% set card = warranty_by_unit.get((item.item_id, unit)) %}
+{% if card %}<p>เครื่องที่ {{ unit }} · Serial {{ card.serial_number }} <a class="btn small" href="/warranty/{{ order.order_id }}/{{ item.item_id }}/{{ unit }}">เปิด / พิมพ์ใบรับประกัน</a></p>
+{% else %}<form method="post" action="/sales/order/{{ order.order_id }}/warranty" style="margin-bottom:14px">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="item_id" value="{{ item.item_id }}"><input type="hidden" name="unit_number" value="{{ unit }}">
+<label>Serial เครื่องที่ {{ unit }}<input name="serial_number" maxlength="100" required placeholder="หมายเลขเครื่องจริง"></label>
+{% if not order.customer_name %}<label>ชื่อลูกค้า<input name="customer_name" maxlength="200" required></label>{% endif %}
+<button class="btn small" type="submit">ออกใบรับประกันเครื่องที่ {{ unit }}</button></form>{% endif %}
+{% endfor %}{% else %}<p>บิลนี้ไม่มีสินค้าหมวดเครื่องพิมพ์ FDM หรือเรซิน</p>{% endfor %}</div>
+{% endif %}
+
 {% if order.cancelled_at %}
 <div class="card" style="border-left:4px solid #991b1b; background:#fef2f2;">
   <p style="margin:0;">

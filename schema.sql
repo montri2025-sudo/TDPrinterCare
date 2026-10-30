@@ -517,3 +517,19 @@ CREATE TABLE IF NOT EXISTS Activity_Files (
     FOREIGN KEY (uploaded_by) REFERENCES Users(user_id),
     CONSTRAINT chk_activity_files_category CHECK (category IN ('marketing','technical'))
 );
+
+-- One immutable warranty card per printer sold, serials cannot be issued twice.
+CREATE TABLE IF NOT EXISTS Warranty_Cards (
+    item_id INT NOT NULL REFERENCES Sale_Items(item_id),
+    unit_number INT NOT NULL CHECK (unit_number > 0),
+    serial_number VARCHAR(100) NOT NULL UNIQUE,
+    model TEXT NOT NULL,
+    printer_type VARCHAR(10) NOT NULL CHECK (printer_type IN ('FDM','Resin')),
+    customer_name TEXT NOT NULL,
+    shop_name TEXT NOT NULL,
+    purchase_date TEXT NOT NULL,
+    warranty_end_date TEXT NOT NULL,
+    issued_at TEXT NOT NULL,
+    issued_by INT NOT NULL REFERENCES Users(user_id),
+    PRIMARY KEY (item_id, unit_number)
+);

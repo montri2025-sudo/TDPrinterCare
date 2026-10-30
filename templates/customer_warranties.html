@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% block title %}ใบรับประกันสินค้า{% endblock %}
+{% block content %}<h1>ใบรับประกันสินค้า</h1><p>ใบรับประกันเครื่องพิมพ์ FDM และเรซินที่ร้านค้าออกให้คุณ</p><div class="card">
+{% for c in cards %}<p><strong>{{ c.model }}</strong> · {{ c.serial_number }} · รับประกันถึง {{ c.warranty_end_date }} <a class="btn small" href="/warranty/{{ c.order_id }}/{{ c.item_id }}/{{ c.unit_number }}">เปิด / พิมพ์ใบประกัน</a></p>{% else %}<p>ยังไม่มีใบรับประกันที่ออกให้บัญชีนี้ กรุณาติดต่อร้านค้าเพื่อแจ้ง Serial และตรวจสอบข้อมูลการซื้อ</p>{% endfor %}</div>{% endblock %}

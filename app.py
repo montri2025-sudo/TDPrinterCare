@@ -7130,11 +7130,16 @@ def sales_order_detail(environ, m, conn, user):
         raise HttpError(404, "ไม่พบรายการขายนี้")
     require_center_access(user, order["center_id"])
     items = conn.execute(
-        """SELECT si.*, sp.part_name FROM Sale_Items si
+        """SELECT si.*, sp.part_name, sp.category FROM Sale_Items si
            JOIN Spare_Parts sp ON sp.part_sku = si.part_sku
            WHERE si.order_id=?""",
         (order_id,),
     ).fetchall()
+    warranty_cards = conn.execute(
+        "SELECT wc.* FROM Warranty_Cards wc JOIN Sale_Items si ON si.item_id=wc.item_id WHERE si.order_id=?",
+        (order_id,),
+    ).fetchall()
+    warranty_by_unit = {(c['item_id'], c['unit_number']): c for c in warranty_cards}
     total_amount = sum((it["quantity"] or 0) * (it["unit_price"] or 0) for it in items)
     total_commission = sum((it["quantity"] or 0) * (it["commission_fee"] or 0) for it in items)
 
@@ -7146,7 +7151,7 @@ def sales_order_detail(environ, m, conn, user):
         customers_for_js = _customers_for_js(customers)
 
     return render("sales_order_detail.html", user=user, order=order, items=items,
-                   total_amount=total_amount, total_commission=total_commission,
+                   total_amount=total_amount, total_commission=total_commission, warranty_by_unit=warranty_by_unit,
                    payment_doc_type_labels=PAYMENT_DOC_TYPE_LABELS,
                    edit_centers=edit_centers, edit_staff=edit_staff,
                    customers=customers, customers_for_js=customers_for_js,
@@ -7397,6 +7402,82 @@ def sales_order_confirm_payment(environ, m, conn, user):
     doc_path = order["payment_doc_type"].replace("_", "-")  # 'cash_bill' -> 'cash-bill', 'tax_invoice' -> 'tax-invoice'
     raise Redirect(f"/sales/order/{order_id}/{doc_path}/print")
 
+
+
+# Warranty cards are issued per physical printer, with immutable sale snapshots.
+def _warranty_sale(conn, order_id, user):
+    require_login(user, 'admin', 'manager', 'sales', 'customer')
+    order = _sale_order_with_names(conn, order_id)
+    if not order:
+        raise HttpError(404, 'ไม่พบรายการขายนี้')
+    if user['role'] == 'customer':
+        if not user.get('customer_id') or user['customer_id'] != order['customer_id']:
+            raise HttpError(403, 'ไม่มีสิทธิ์ดูใบรับประกันนี้')
+    else:
+        require_center_access(user, order['center_id'])
+    if order['cancelled_at'] or not order['payment_confirmed_at']:
+        raise HttpError(400, 'ออกใบรับประกันได้เฉพาะบิลที่ยืนยันรับชำระแล้วและไม่ถูกยกเลิก')
+    return order
+
+
+@route('POST', r'/sales/order/(\d+)/warranty')
+def sales_warranty_issue(environ, m, conn, user):
+    require_login(user, 'admin', 'manager', 'sales')
+    order_id = int(m.group(1))
+    order = _warranty_sale(conn, order_id, user)
+    form = parse_post(environ)
+    try:
+        item_id, unit = int(form.get('item_id', '')), int(form.get('unit_number', ''))
+    except ValueError:
+        raise HttpError(400, 'กรุณาเลือกรายการและลำดับเครื่อง')
+    item = conn.execute('''SELECT si.*, sp.part_name, sp.category FROM Sale_Items si
+                           JOIN Spare_Parts sp ON sp.part_sku=si.part_sku
+                           WHERE si.order_id=? AND si.item_id=?''', (order_id, item_id)).fetchone()
+    if not item or item['category'] not in ('FDM_Printer', 'Resin_Printer') or not 1 <= unit <= item['quantity']:
+        raise HttpError(400, 'รายการนี้ไม่ใช่เครื่องพิมพ์ FDM/เรซิน หรือลำดับเกินจำนวนที่ซื้อ')
+    serial = form.get('serial_number', '').strip()
+    if not serial or len(serial) > 100 or any(ord(c) < 32 for c in serial):
+        raise HttpError(400, 'กรุณาระบุ Serial เครื่องให้ถูกต้อง (ไม่เกิน 100 ตัวอักษร)')
+    customer_name = (order['customer_name'] or form.get('customer_name', '')).strip()
+    if not customer_name or len(customer_name) > 200:
+        raise HttpError(400, 'กรุณาระบุชื่อลูกค้าสำหรับใบรับประกัน')
+    purchase = _parse_date_or_none((order['created_at'] or '')[:10])
+    if not purchase:
+        raise HttpError(400, 'วันที่ซื้อในบิลไม่ถูกต้อง กรุณาตรวจข้อมูลบิล')
+    end = _add_years(purchase, 1)
+    conn.execute('''INSERT INTO Warranty_Cards
+        (item_id, unit_number, serial_number, model, printer_type, customer_name, shop_name,
+         purchase_date, warranty_end_date, issued_at, issued_by)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING''',
+        (item_id, unit, serial, item['part_name'], 'FDM' if item['category']=='FDM_Printer' else 'Resin',
+         customer_name, order['center_name'], purchase.isoformat(), end.isoformat(), db.now(), user['user_id']))
+    card = conn.execute('SELECT * FROM Warranty_Cards WHERE item_id=? AND unit_number=?', (item_id, unit)).fetchone()
+    if not card or card['serial_number'] != serial:
+        raise HttpError(400, 'Serial นี้มีใบประกันแล้ว หรือเครื่องลำดับนี้ออกใบประกันด้วย Serial อื่นแล้ว')
+    conn.commit()
+    raise Redirect(f'/warranty/{order_id}/{item_id}/{unit}')
+
+
+@route('GET', r'/warranty/(\d+)/(\d+)/(\d+)')
+def warranty_card_print(environ, m, conn, user):
+    order_id, item_id, unit = map(int, m.groups())
+    order = _warranty_sale(conn, order_id, user)
+    card = conn.execute('''SELECT wc.* FROM Warranty_Cards wc JOIN Sale_Items si ON si.item_id=wc.item_id
+                           WHERE si.order_id=? AND wc.item_id=? AND wc.unit_number=?''',
+                        (order_id, item_id, unit)).fetchone()
+    if not card:
+        raise HttpError(404, 'ยังไม่ได้ออกใบรับประกันเครื่องนี้')
+    return render('warranty_card_print.html', card=card, order=order, user=user)
+
+
+@route('GET', r'/customer/warranties')
+def customer_warranties(environ, m, conn, user):
+    require_login(user, 'customer')
+    cards = conn.execute('''SELECT wc.*, so.order_id FROM Warranty_Cards wc
+        JOIN Sale_Items si ON si.item_id=wc.item_id JOIN Sales_Orders so ON so.order_id=si.order_id
+        WHERE so.customer_id=? AND so.cancelled_at IS NULL AND so.payment_confirmed_at IS NOT NULL
+        ORDER BY wc.issued_at DESC''', (user.get('customer_id'),)).fetchall()
+    return render('customer_warranties.html', cards=cards, user=user)
 
 @route("GET", r"/sales/order/(\d+)/cash-bill/print")
 def sales_cash_bill_print(environ, m, conn, user):
