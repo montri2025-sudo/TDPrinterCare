@@ -4,7 +4,9 @@ After payment confirmation, the sale detail page offers one warranty form per un
 for `FDM_Printer` and `Resin_Printer` items. Staff enter the physical serial number;
 walk-in purchases also require a customer name. Cards use a monochrome printable
 layout based on the supplied TD Printer reference, a text brand heading, contact details,
-and its one-year terms. Browser Print can save the document as PDF.
+and its one-year terms. Browser Print can save the document as PDF. Cards are front/back, each 100 × 100 mm,
+placed side by side on one portrait A4 page with 5 mm page margins.
+Print at actual size (100%) without fit-to-page scaling.
 
 The purchase date comes from the sale date. The one-year anniversary handles leap
 days. Model, buyer, store and dates are stored as issuance snapshots. A unique serial
