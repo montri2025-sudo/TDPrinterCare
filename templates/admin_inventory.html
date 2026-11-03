@@ -8,6 +8,7 @@
 {% endblock %}
 {% block content %}
 <header class="warehouse-heading"><div><span>INVENTORY OPERATIONS</span><h1>Virtual Warehouse<span>.</span></h1><p>ชั้นวางสินค้า · สถานะสต็อก · วางแผนสั่งซื้อเดือนนี้</p></div><a class="btn secondary" href="#warehouse-tools">จัดการสินค้า / เติมสต็อก ↗</a></header>
+<p><a class="btn" href="/admin/inventory/report" target="_blank" rel="noopener">พิมพ์ / PDF รายการสินค้าทั้งหมด</a> <span class="hint">รวมจำนวนและราคาทุน · รายงานภายในตามสิทธิ์สาขา · ไม่จำกัดตามช่องค้นหา</span></p>
 {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
 <p class="hint">สินค้าที่มูลค่าการเบิกต่อครั้งเกิน {{ threshold }} บาท ต้องรอผู้จัดการอนุมัติก่อนตัดสต็อก · แนบรูปได้สูงสุด {{ max_images }} รูปต่อชิ้น (ไฟล์ละไม่เกิน {{ max_image_mb }} MB)</p>
 

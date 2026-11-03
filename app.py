@@ -4210,6 +4210,40 @@ def admin_inventory(environ, m, conn, user):
     return render("admin_inventory.html", user=user, error=None, **_inventory_ctx(conn, user, q))
 
 
+@route("GET", r"/admin/inventory/report")
+def inventory_report(environ, m, conn, user):
+    require_login(user, "admin", "manager")
+    # No search or client pagination: export every SKU within the authorized scope.
+    if user['role'] == 'manager' and not user.get('center_id'):
+        parts = []
+    else:
+        parts = _load_parts(conn, center_id=user.get('center_id') if user['role']=='manager' else None)
+    centers = {r['center_id']: r['name'] for r in conn.execute('SELECT center_id,name FROM Service_Centers').fetchall()}
+    from decimal import Decimal, ROUND_HALF_UP
+    groups = []
+    total_units, total_value = 0, Decimal('0')
+    for category in PRODUCT_CATEGORIES:
+        rows = []
+        for part in parts:
+            if (part['category'] or 'Other') != category:
+                continue
+            row = dict(part)
+            price = Decimal(str(part['cost_price'] or 0)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+            row['price'] = price
+            row['value'] = price * part['stock_quantity']
+            row['center_name'] = centers.get(part['center_id'], 'คลังกลาง')
+            rows.append(row)
+        if rows:
+            units = sum(r['stock_quantity'] for r in rows)
+            value = sum((r['value'] for r in rows), Decimal('0'))
+            groups.append({'name':PRODUCT_CATEGORY_LABELS[category], 'rows':rows, 'units':units, 'value':value})
+            total_units += units
+            total_value += value
+    scope = centers.get(user.get('center_id'), 'ยังไม่ได้กำหนดสาขา') + ' และคลังกลาง' if user['role']=='manager' else 'ทุกสาขาและคลังกลาง'
+    return render('inventory_report.html', groups=groups, total_skus=len(parts), total_units=total_units,
+                  total_value=total_value, scope=scope, generated_at=db.now())
+
+
 @route("GET", r"/staff/warehouse")
 def staff_warehouse(environ, m, conn, user):
     """Operational stock room: branch-scoped, read-only, no cost prices or edit forms."""
