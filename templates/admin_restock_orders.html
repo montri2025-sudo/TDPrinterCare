@@ -33,11 +33,7 @@
       <td>{{ o.created_at }}</td>
       <td style="white-space:nowrap;">
         <a href="/admin/restock-orders/{{ o.order_id }}" class="btn small secondary">รายละเอียด/แก้ไข</a>
-        <a href="/admin/restock-orders/{{ o.order_id }}/delivery-note" target="_blank" class="btn small secondary">🧾 ใบส่งสินค้า</a>
-        <a href="/admin/restock-orders/{{ o.order_id }}/quote/print" target="_blank" class="btn small secondary">📄 ใบเสนอราคา</a>
-        {% if o.payment_confirmed_at %}
-        <a href="/admin/restock-orders/{{ o.order_id }}/tax-invoice" target="_blank" class="btn small secondary">🧾 ใบกำกับภาษี</a>
-        {% endif %}
+        {% with document_order=o %}{% include "_restock_document_picker.html" %}{% endwith %}
         {% if o.status == 'requested' %}
         <form method="post" action="/admin/restock-orders/{{ o.order_id }}/process" style="display:inline;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

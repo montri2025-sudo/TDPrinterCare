@@ -1,0 +1,14 @@
+{% if document_order.status != 'cancelled' %}
+<form method="get" action="/admin/restock-orders/{{ document_order.order_id }}/document" target="_blank"
+      style="display:inline-flex; flex-wrap:wrap; align-items:center; gap:6px; white-space:normal;">
+  <select name="type" aria-label="เลือกประเภทเอกสาร" required style="width:auto;">
+    <option value="" selected disabled>เลือกเอกสาร</option>
+    <option value="delivery">ใบส่งสินค้า</option>
+    <option value="quote">ใบเสนอราคา</option>
+    <option value="invoice">ใบแจ้งหนี้</option>
+    {% if document_order.payment_confirmed_at %}<option value="tax">ใบกำกับภาษี</option>{% endif %}
+  </select>
+  <label style="margin:0; font-size:12px;"><input type="checkbox" name="vat" value="1" style="width:auto;"> รวม VAT ในใบเสนอราคา</label>
+  <button type="submit" class="btn small secondary">เปิดเอกสาร</button>
+</form>
+{% endif %}

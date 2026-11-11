@@ -5015,17 +5015,9 @@ def admin_restock_delivery_note(environ, m, conn, user):
     ของเบราว์เซอร์ผู้ใช้เอง เหมือนใบเสนอราคา/ใบแจ้งหนี้ (ดูหมายเหตุที่ต้นไฟล์หัวข้อ "printable PDF views")"""
     require_login(user, "admin")
     order_id = int(m.group(1))
-    order = conn.execute(
-        """SELECT ro.*, sc.name AS center_name, sc.address AS center_address, sc.phone AS center_phone,
-                  sc.tax_id AS center_tax_id, u.name AS requested_by_name
-           FROM Restock_Orders ro
-           JOIN Service_Centers sc ON sc.center_id = ro.center_id
-           JOIN Users u ON u.user_id = ro.requested_by
-           WHERE ro.order_id=?""",
-        (order_id,),
-    ).fetchone()
-    if not order:
-        raise HttpError(404, "ไม่พบคำสั่งซื้อนี้")
+    order = _restock_order_with_names(conn, order_id)
+    if not order or order["status"] == "cancelled":
+        raise HttpError(404, "ไม่พบคำสั่งซื้อที่พิมพ์เอกสารได้")
     hq = _get_hq_center(conn)
     if not hq:
         raise HttpError(
@@ -5033,14 +5025,9 @@ def admin_restock_delivery_note(environ, m, conn, user):
             "ยังไม่ได้กำหนดศูนย์บริการที่เป็น \"สำนักงานใหญ่\" — กรุณาไปตั้งค่าที่หน้า \"ศูนย์บริการ\" "
             "(ติ๊ก \"ตั้งเป็นสำนักงานใหญ่\" ที่สาขาที่ต้องการใช้เป็นผู้ส่ง) ก่อนพิมพ์ใบส่งสินค้า",
         )
-    items = conn.execute(
-        """SELECT roi.*, sp.part_name FROM Restock_Order_Items roi
-           JOIN Spare_Parts sp ON sp.part_sku = roi.part_sku
-           WHERE roi.order_id=? ORDER BY roi.item_id""",
-        (order_id,),
-    ).fetchall()
-    total = sum((it["quantity_requested"] or 0) * (it["unit_price"] or 0) for it in items)
-    return render("delivery_note_print.html", order=order, hq=hq, items=items, total=round(total, 2))
+    items = _restock_document_items(conn, order_id)
+    return render("delivery_note_print.html", order=order, hq=hq, items=items,
+                  **_restock_document_amounts(items, include_vat=True))
 
 
 def _restock_order_with_names(conn, order_id):
@@ -5058,37 +5045,55 @@ def _restock_order_with_names(conn, order_id):
     ).fetchone()
 
 
+def _restock_document_items(conn, order_id):
+    return conn.execute(
+        """SELECT roi.*, sp.part_name FROM Restock_Order_Items roi
+           JOIN Spare_Parts sp ON sp.part_sku = roi.part_sku
+           WHERE roi.order_id=? ORDER BY roi.item_id""", (order_id,),
+    ).fetchall()
+
+
+def _restock_document_amounts(items, *, include_vat):
+    subtotal = round(sum((it["quantity_requested"] or 0) * (it["unit_price"] or 0) for it in items), 2)
+    vat = round(subtotal * db.VAT_RATE, 2) if include_vat else None
+    return dict(subtotal=subtotal, vat=vat, grand_total=round(subtotal + (vat or 0), 2),
+                include_vat=include_vat, vat_rate_percent=int(db.VAT_RATE * 100))
+
+
+@route("GET", r"/admin/restock-orders/(\d+)/document")
+def admin_restock_document(environ, m, conn, user):
+    require_login(user, "admin")
+    params = parse_qs(environ.get("QUERY_STRING", ""))
+    document = params.get("type", [""])[0]
+    path = {"delivery": "delivery-note", "quote": "quote/print", "invoice": "invoice/print",
+            "tax": "tax-invoice"}.get(document)
+    if not path:
+        raise HttpError(400, "กรุณาเลือกประเภทเอกสาร")
+    vat = "?vat=1" if document == "quote" and params.get("vat", [""])[0] == "1" else ""
+    raise Redirect(f"/admin/restock-orders/{int(m.group(1))}/{path}{vat}")
+
+
 @route("GET", r"/admin/restock-orders/(\d+)/quote/print")
 def admin_restock_quote_print(environ, m, conn, user):
-    """ใบเสนอราคา — เอกสารข้อมูลอย่างเดียว ไม่ใช่การยืนยันรับชำระเงิน พิมพ์ได้ทุกสถานะยกเว้นคำสั่งซื้อที่ยกเลิกแล้ว
-    รองรับ checkbox "รวม VAT" ส่งมาเป็น query string ?vat=1 (GET form เหมือน sales_quote_print) — ถ้าไม่เลือก
-    จะไม่คำนวณ/ไม่แสดงแถวภาษีมูลค่าเพิ่มเลย ผู้ซื้อในเอกสารนี้คือศูนย์บริการปลายทางของคำสั่งซื้อ (ไม่มีแนวคิด
-    "ลูกค้า" แบบบิลขายปกติ เพราะเป็นการซื้อขายภายในระหว่าง HQ กับศูนย์บริการ)"""
+    return _restock_quote_or_invoice_print(environ, m, conn, user, invoice=False)
+
+
+@route("GET", r"/admin/restock-orders/(\d+)/invoice/print")
+def admin_restock_invoice_print(environ, m, conn, user):
+    return _restock_quote_or_invoice_print(environ, m, conn, user, invoice=True)
+
+
+def _restock_quote_or_invoice_print(environ, m, conn, user, *, invoice):
     require_login(user, "admin")
     order_id = int(m.group(1))
     order = _restock_order_with_names(conn, order_id)
-    if not order:
-        raise HttpError(404, "ไม่พบคำสั่งซื้อนี้")
-    if order["status"] == "cancelled":
-        raise HttpError(404, "คำสั่งซื้อนี้ถูกยกเลิกแล้ว พิมพ์เอกสารนี้ไม่ได้")
+    if not order or order["status"] == "cancelled":
+        raise HttpError(404, "ไม่พบคำสั่งซื้อที่พิมพ์เอกสารได้")
     qs = parse_qs(environ.get("QUERY_STRING", ""))
-    include_vat = qs.get("vat", [""])[0] == "1"
-    items = conn.execute(
-        """SELECT roi.*, sp.part_name FROM Restock_Order_Items roi
-           JOIN Spare_Parts sp ON sp.part_sku = roi.part_sku
-           WHERE roi.order_id=? ORDER BY roi.item_id""",
-        (order_id,),
-    ).fetchall()
-    subtotal = round(sum((it["quantity_requested"] or 0) * (it["unit_price"] or 0) for it in items), 2)
-    if include_vat:
-        vat = round(subtotal * db.VAT_RATE, 2)
-        grand_total = round(subtotal + vat, 2)
-    else:
-        vat = None
-        grand_total = subtotal
-    hq = _get_hq_center(conn)
-    return render("restock_quote_print.html", order=order, items=items, subtotal=subtotal, vat=vat,
-                  grand_total=grand_total, include_vat=include_vat, vat_rate_percent=int(db.VAT_RATE * 100), hq=hq)
+    items = _restock_document_items(conn, order_id)
+    return render("restock_quote_print.html", order=order, items=items, is_invoice=invoice,
+                  hq=_get_hq_center(conn),
+                  **_restock_document_amounts(items, include_vat=invoice or qs.get("vat", [""])[0] == "1"))
 
 
 @route("POST", r"/admin/restock-orders/(\d+)/confirm-payment")
@@ -5116,22 +5121,13 @@ def admin_restock_tax_invoice_print(environ, m, conn, user):
     require_login(user, "admin")
     order_id = int(m.group(1))
     order = _restock_order_with_names(conn, order_id)
-    if not order:
-        raise HttpError(404, "ไม่พบคำสั่งซื้อนี้")
+    if not order or order["status"] == "cancelled":
+        raise HttpError(404, "ไม่พบคำสั่งซื้อที่พิมพ์เอกสารได้")
     if not order["payment_confirmed_at"]:
         raise HttpError(404, "คำสั่งซื้อนี้ยังไม่ได้ยืนยันรับชำระเงิน ออกใบกำกับภาษีไม่ได้")
-    items = conn.execute(
-        """SELECT roi.*, sp.part_name FROM Restock_Order_Items roi
-           JOIN Spare_Parts sp ON sp.part_sku = roi.part_sku
-           WHERE roi.order_id=? ORDER BY roi.item_id""",
-        (order_id,),
-    ).fetchall()
-    subtotal = round(sum((it["quantity_requested"] or 0) * (it["unit_price"] or 0) for it in items), 2)
-    vat = round(subtotal * db.VAT_RATE, 2)
-    grand_total = round(subtotal + vat, 2)
-    hq = _get_hq_center(conn)
-    return render("restock_tax_invoice_print.html", order=order, items=items, subtotal=subtotal, vat=vat,
-                  grand_total=grand_total, vat_rate_percent=int(db.VAT_RATE * 100), hq=hq)
+    items = _restock_document_items(conn, order_id)
+    return render("restock_tax_invoice_print.html", order=order, items=items, hq=_get_hq_center(conn),
+                  **_restock_document_amounts(items, include_vat=True))
 
 
 # ขั้นที่ 5 "รายงานยอดขาย/ชำระเงินฝากขาย": ศูนย์บริการส่งรายงานยอดขายสินค้าฝากขายประจำเดือน (คำนวณอัตโนมัติจาก

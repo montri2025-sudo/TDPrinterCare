@@ -47,3 +47,24 @@ class TestSalesPrintDocuments(office.fixtures.ApiTestCase):
                 self.assertIn('<thead>', html)
                 self.assertIn('class="header"', html)
                 self.assertIn('200.00' if kind == 'quote' else '214.00', html)
+
+    def test_restock_invoice_and_delivery_agree_with_tax_invoice_without_confirming_payment(self):
+        self.mutate("UPDATE Service_Centers SET is_headquarters=1 WHERE center_id=1")
+        self.mutate("INSERT INTO Restock_Orders(order_id,center_id,requested_by,created_at) VALUES(1,2,21,'2026-11-11')")
+        self.mutate("INSERT INTO Restock_Order_Items(order_id,part_sku,quantity_requested,unit_price) VALUES(1,'FAKE-SKU-1',2,100)")
+        base = '/admin/restock-orders/1'
+        for suffix in ('/delivery-note', '/invoice/print'):
+            status, _, html = self.request(base + suffix)
+            self.assertEqual(status, 200)
+            self.assertIn('214.00', html)
+        self.assertEqual(self.request(base + '/tax-invoice')[0], 404)
+        status, headers, _ = self.request(base + '/document', query='type=invoice&vat=1')
+        self.assertEqual(status, 302)
+        self.assertEqual(headers['Location'], base + '/invoice/print')
+        self.assertEqual(self.request(base + '/document', query='type=unknown')[0], 400)
+        self.assertEqual(self.request(base + '/invoice/print', user_id=21)[0], 403)
+        self.mutate("UPDATE Restock_Orders SET payment_confirmed_at='2026-11-11' WHERE order_id=1")
+        self.assertIn('214.00', self.request(base + '/tax-invoice')[2])
+        self.mutate("UPDATE Restock_Orders SET status='cancelled' WHERE order_id=1")
+        for suffix in ('/delivery-note', '/invoice/print', '/tax-invoice'):
+            self.assertEqual(self.request(base + suffix)[0], 404)

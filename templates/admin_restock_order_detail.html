@@ -27,23 +27,13 @@
 
 <div class="card">
   <h2 style="margin-top:0;">🧾 เอกสาร</h2>
-  <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
-    <a href="/admin/restock-orders/{{ order.order_id }}/delivery-note" target="_blank" class="btn small secondary">📦 ใบส่งสินค้า</a>
-    <form method="get" action="/admin/restock-orders/{{ order.order_id }}/quote/print" target="_blank"
-          style="display:inline-flex; align-items:center; gap:6px;">
-      <label style="display:inline-flex; align-items:center; gap:4px; font-weight:400; font-size:13px; margin:0; white-space:nowrap;">
-        <input type="checkbox" name="vat" value="1" style="width:auto; margin:0;"> รวม VAT
-      </label>
-      <button class="btn small secondary" type="submit">📄 ใบเสนอราคา</button>
-    </form>
-  </div>
+  {% with document_order=order %}{% include "_restock_document_picker.html" %}{% endwith %}
 
   <hr style="margin:14px 0; border:none; border-top:1px solid var(--border-soft);">
 
   {% if order.payment_confirmed_at %}
   <p class="ok" style="margin:0 0 8px;">✅ ยืนยันรับชำระเงินแล้วเมื่อ {{ order.payment_confirmed_at }} โดย {{ order.payment_confirmed_by_name }}</p>
-  <a href="/admin/restock-orders/{{ order.order_id }}/tax-invoice" target="_blank" class="btn small">🧾 พิมพ์ใบกำกับภาษี</a>
-  {% else %}
+  {% elif order.status != 'cancelled' %}
   <form method="post" action="/admin/restock-orders/{{ order.order_id }}/confirm-payment"
         onsubmit="return confirm('ยืนยันว่าศูนย์บริการนี้ชำระค่าสินค้าคำสั่งซื้อนี้แล้ว? หลังยืนยันจะออกใบกำกับภาษีได้ และแก้ไขการยืนยันนี้ในภายหลังไม่ได้');">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

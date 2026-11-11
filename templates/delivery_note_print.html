@@ -26,8 +26,8 @@
   .sign-box { flex: 1; text-align: center; }
   .sign-line { border-top: 1px solid #888; margin-top: 48px; padding-top: 6px; font-size: 13px; }
   .footnote { font-size: 12px; color: #888; margin-top: 32px; }
-  @media print { .no-print { display: none; } body { margin: 0; } }
 </style>
+{% include "_a4_document_print.html" %}
 </head>
 <body>
   <div class="no-print">
@@ -74,10 +74,11 @@
 
   {% if items %}
   <table>
-    <tr>
+    <thead><tr>
       <th style="width:40px;">ลำดับ</th><th>รายละเอียด</th><th class="num" style="width:80px;">จำนวน</th>
-      <th class="num" style="width:110px;">ราคาต่อหน่วย</th><th class="num" style="width:120px;">รวมเป็นเงิน</th>
-    </tr>
+      <th class="num" style="width:110px;">ราคาต่อหน่วยก่อน VAT</th><th class="num" style="width:120px;">รวมเป็นเงิน</th>
+    </tr></thead>
+    <tbody>
     {% for it in items %}
     <tr>
       <td>{{ loop.index }}</td>
@@ -88,9 +89,14 @@
     </tr>
     {% endfor %}
     <tr class="total-row">
-      <td colspan="4" style="text-align:right;">ราคารวมสินค้า (บาท)</td>
-      <td class="num">{{ "%.2f"|format(total) }}</td>
+      <td colspan="4" style="text-align:right;">ราคารวมก่อน VAT (บาท)</td>
+      <td class="num">{{ "%.2f"|format(subtotal) }}</td>
     </tr>
+    <tr><td colspan="4" style="text-align:right;">VAT {{ vat_rate_percent }}% (บาท)</td>
+      <td class="num">{{ "%.2f"|format(vat) }}</td></tr>
+    <tr class="total-row"><td colspan="4" style="text-align:right;">ยอดสุทธิรวม VAT (บาท)</td>
+      <td class="num">{{ "%.2f"|format(grand_total) }}</td></tr>
+    </tbody>
   </table>
   {% else %}
   <p>ไม่มีรายการสินค้าในคำสั่งซื้อนี้</p>

@@ -2,7 +2,8 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>ใบเสนอราคา — คำสั่งซื้อ #{{ order.order_id }}</title>
+{% set document_title = "ใบแจ้งหนี้" if is_invoice else "ใบเสนอราคา" %}
+<title>{{ document_title }} — คำสั่งซื้อ #{{ order.order_id }}</title>
 <style>
   /* รูปแบบเดียวกับใบแจ้งหนี้ (invoice_print.html) */
   body { font-family: "Tahoma", "Segoe UI", sans-serif; color: #222; max-width: 800px; margin: 40px auto; padding: 0 20px; }
@@ -46,7 +47,8 @@
       </div>
     </div>
     <div class="doc-title">
-      <h2>ใบเสนอราคา</h2>
+      <h2>{{ document_title }}</h2>
+      {% if is_invoice %}<p>เลขที่ INV-R{{ "%06d"|format(order.order_id) }}</p>{% endif %}
       <p>คำสั่งซื้อเลขที่ #{{ order.order_id }}</p>
       <p>วันที่ {{ order.created_at }}</p>
     </div>
@@ -120,14 +122,14 @@
     </div>
     <div style="display:flex; gap:32px; flex-wrap:wrap;">
       <div class="sign-box">
-        <div class="sign-line">ผู้เสนอราคา / อนุมัติโดย<br>({{ hq.name if hq else '-' }})</div>
+        <div class="sign-line">{{ "ผู้ออกใบแจ้งหนี้" if is_invoice else "ผู้เสนอราคา / อนุมัติโดย" }}<br>({{ hq.name if hq else '-' }})</div>
       </div>
       <div class="sign-box">
-        <div class="sign-line">ผู้รับใบเสนอราคา<br>({{ order.center_name }})</div>
+        <div class="sign-line">ผู้รับ{{ document_title }}<br>({{ order.center_name }})</div>
       </div>
     </div>
   </div>
 
-  <p class="footnote">เอกสารนี้เป็นใบเสนอราคาอ้างอิงจากรายการในคำสั่งซื้อนี้ ไม่ใช่ใบกำกับภาษีและไม่ใช่การยืนยันรับชำระเงิน</p>
+  <p class="footnote">เอกสารนี้เป็น{{ document_title }}อ้างอิงจากรายการในคำสั่งซื้อนี้ ไม่ใช่ใบกำกับภาษีและไม่ใช่การยืนยันรับชำระเงิน</p>
 </body>
 </html>
