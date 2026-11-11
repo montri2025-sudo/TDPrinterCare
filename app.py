@@ -7579,6 +7579,16 @@ def sales_quote_print(environ, m, conn, user):
     (ไม่ผูกกับสถานะ payment_confirmed_at เลย — พิมพ์ได้ไม่ว่าจะยืนยันรับชำระด้วยเอกสารอื่นไปแล้วหรือไม่ก็ตาม) —
     รองรับ checkbox "บิล VAT" บนหน้ารายละเอียดบิลขาย ส่งมาเป็น query string ?vat=1 (GET form, ไม่ต้องใช้ JS) —
     ถ้าไม่เลือก จะไม่คำนวณ/ไม่แสดงแถวภาษีมูลค่าเพิ่มในใบเสนอราคาเลย (ราคารวมทั้งหมด = รวมเป็นเงินตรงๆ)"""
+    return _sales_quote_or_invoice_print(environ, m, conn, user, invoice=False)
+
+
+@route("GET", r"/sales/order/(\d+)/invoice/print")
+def sales_invoice_print(environ, m, conn, user):
+    """Billing document for a sale, without recording a payment."""
+    return _sales_quote_or_invoice_print(environ, m, conn, user, invoice=True)
+
+
+def _sales_quote_or_invoice_print(environ, m, conn, user, *, invoice):
     require_login(user, "admin", "manager", "sales")
     order_id = int(m.group(1))
     order = _sale_order_with_names(conn, order_id)
@@ -7588,10 +7598,11 @@ def sales_quote_print(environ, m, conn, user):
     if order["cancelled_at"]:
         raise HttpError(404, "บิลนี้ถูกยกเลิกแล้ว พิมพ์เอกสารนี้ไม่ได้")
     if not order["customer_id"]:
-        raise HttpError(400, "ออกใบเสนอราคาได้เฉพาะบิลที่เลือกลูกค้าแล้วเท่านั้น")
+        raise HttpError(400, "ออกเอกสารได้เฉพาะบิลที่เลือกลูกค้าแล้วเท่านั้น")
     qs = parse_qs(environ.get("QUERY_STRING", ""))
     include_vat = qs.get("vat", [""])[0] == "1"
-    center = conn.execute("SELECT * FROM Service_Centers WHERE center_id=?", (order["center_id"],)).fetchone()
+    if invoice and order["payment_confirmed_at"]:
+        include_vat = order["payment_doc_type"] == "tax_invoice"
     customer = conn.execute("SELECT * FROM Customers WHERE customer_id=?", (order["customer_id"],)).fetchone()
     items = conn.execute(
         """SELECT si.*, sp.part_name FROM Sale_Items si
@@ -7607,7 +7618,8 @@ def sales_quote_print(environ, m, conn, user):
         vat = None
         grand_total = subtotal
     hq = _get_hq_center(conn)
-    return render("sales_quote_print.html", order=order, center=center, customer=customer, items=items,
+    return render("sales_quote_print.html", order=order, customer=customer, items=items,
+                   is_invoice=invoice,
                    subtotal=subtotal, vat=vat, grand_total=grand_total, include_vat=include_vat,
                    vat_rate_percent=int(db.VAT_RATE * 100), hq=hq)
 

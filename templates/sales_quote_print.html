@@ -2,7 +2,8 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>ใบเสนอราคา — บิลขาย #{{ order.order_id }}</title>
+{% set document_title = "ใบแจ้งหนี้" if is_invoice else "ใบเสนอราคา" %}
+<title>{{ document_title }} — บิลขาย #{{ order.order_id }}</title>
 <style>
   /* รูปแบบเดียวกับใบแจ้งหนี้ (invoice_print.html) */
   body { font-family: "Tahoma", "Segoe UI", sans-serif; color: #222; max-width: 800px; margin: 40px auto; padding: 0 20px; }
@@ -28,8 +29,8 @@
   .pay-box p, .contact-box p { margin: 2px 0; line-height: 1.5; }
   .sign-box { text-align: center; min-width: 220px; }
   .sign-line { border-top: 1px solid #888; margin-top: 56px; padding-top: 6px; font-size: 13px; }
-  @media print { .no-print { display: none; } body { margin: 0; } }
 </style>
+{% include "_a4_document_print.html" %}
 </head>
 <body>
   <div class="no-print">
@@ -46,7 +47,8 @@
       </div>
     </div>
     <div class="doc-title">
-      <h2>ใบเสนอราคา</h2>
+      <h2>{{ document_title }}</h2>
+      {% if is_invoice %}<p>เลขที่ INV-S{{ "%06d"|format(order.order_id) }}</p>{% endif %}
       <p>บิลขายเลขที่ #{{ order.order_id }}</p>
       <p>สาขา {{ order.center_name }}</p>
       <p>วันที่ {{ order.created_at }}</p>
@@ -67,7 +69,8 @@
   </div>
 
   <table>
-    <tr><th style="width:40px;">ลำดับ</th><th>รายการ</th><th class="num" style="width:70px;">จำนวน</th><th class="num" style="width:120px;">ราคา/หน่วย (บาท)</th><th class="num" style="width:120px;">รวม (บาท)</th></tr>
+    <thead><tr><th style="width:40px;">ลำดับ</th><th>รายการ</th><th class="num" style="width:70px;">จำนวน</th><th class="num" style="width:120px;">ราคา/หน่วย (บาท)</th><th class="num" style="width:120px;">รวม (บาท)</th></tr></thead>
+    <tbody>
     {% for it in items %}
     <tr>
       <td>{{ loop.index }}</td>
@@ -91,6 +94,7 @@
       <td colspan="4" style="text-align:right;">ยอดรวมสุทธิ</td>
       <td class="num">{{ "%.2f"|format(grand_total) }} บาท</td>
     </tr>
+  </tbody>
   </table>
 
   {% if order.notes %}<p style="font-size:14px;"><b>หมายเหตุ:</b> {{ order.notes }}</p>{% endif %}
@@ -117,11 +121,11 @@
       </div>
     </div>
     <div class="sign-box">
-      <div class="sign-line">{{ order.sold_by_name }}<br>ผู้เสนอราคา/ผู้อนุมัติ</div>
+      <div class="sign-line">{{ order.sold_by_name }}<br>{{ "ผู้ออกใบแจ้งหนี้" if is_invoice else "ผู้เสนอราคา/ผู้อนุมัติ" }}</div>
       <p style="font-size:13px;">วันที่: {{ order.created_at }}</p>
     </div>
   </div>
 
-  <p class="footnote">เอกสารนี้เป็นใบเสนอราคาอ้างอิงจากรายการในบิลขายนี้ ไม่ใช่ใบกำกับภาษีและไม่ใช่การยืนยันรับชำระเงิน</p>
+  <p class="footnote">เอกสารนี้เป็น{{ document_title }}อ้างอิงจากรายการในบิลขายนี้ ไม่ใช่ใบกำกับภาษีและไม่ใช่การยืนยันรับชำระเงิน</p>
 </body>
 </html>

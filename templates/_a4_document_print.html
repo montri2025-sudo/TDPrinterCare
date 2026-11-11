@@ -1,0 +1,31 @@
+<style>
+  @page { size: A4 portrait; margin: 16mm 12mm 14mm; }
+  @media print {
+    html, body { width: auto; max-width: none; margin: 0; padding: 0; }
+    body { overflow-wrap: anywhere; }
+    .no-print { display: none !important; }
+    .header {
+      gap: 5mm;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      break-after: avoid;
+      margin-bottom: 4mm;
+      padding-bottom: 3mm;
+    }
+    .header > div { min-width: 0; }
+    .header h1 { font-size: 18pt; }
+    .header h2 { font-size: 15pt; }
+    .header img { max-width: 32mm; max-height: 18mm; object-fit: contain; }
+    .seller-box { break-inside: avoid; }
+    .underline { min-width: 0 !important; }
+    table { margin: 4mm 0; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+    th, td { padding: 1.5mm 2mm; font-size: 9pt; }
+    th.num, td.num { white-space: nowrap; }
+    .bottom { gap: 4mm; margin-top: 4mm; }
+    .sign-box { min-width: 42mm; break-inside: avoid; }
+    .sign-line { margin-top: 9mm; }
+    .footnote, .hint-note { margin-top: 4mm; }
+  }
+</style>

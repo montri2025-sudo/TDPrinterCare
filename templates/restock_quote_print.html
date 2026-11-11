@@ -28,8 +28,8 @@
   .pay-box p, .contact-box p { margin: 2px 0; line-height: 1.5; }
   .sign-box { text-align: center; min-width: 220px; }
   .sign-line { border-top: 1px solid #888; margin-top: 56px; padding-top: 6px; font-size: 13px; }
-  @media print { .no-print { display: none; } body { margin: 0; } }
 </style>
+{% include "_a4_document_print.html" %}
 </head>
 <body>
   <div class="no-print">
@@ -67,7 +67,8 @@
   </div>
 
   <table>
-    <tr><th style="width:40px;">ลำดับ</th><th>รายการ</th><th class="num" style="width:70px;">จำนวน</th><th class="num" style="width:120px;">ราคา/หน่วย (บาท)</th><th class="num" style="width:120px;">รวม (บาท)</th></tr>
+    <thead><tr><th style="width:40px;">ลำดับ</th><th>รายการ</th><th class="num" style="width:70px;">จำนวน</th><th class="num" style="width:120px;">ราคา/หน่วย (บาท)</th><th class="num" style="width:120px;">รวม (บาท)</th></tr></thead>
+    <tbody>
     {% for it in items %}
     <tr>
       <td>{{ loop.index }}</td>
@@ -91,6 +92,7 @@
       <td colspan="4" style="text-align:right;">ยอดรวมสุทธิ</td>
       <td class="num">{{ "%.2f"|format(grand_total) }} บาท</td>
     </tr>
+  </tbody>
   </table>
 
   {% if order.notes %}<p style="font-size:14px;"><b>หมายเหตุ:</b> {{ order.notes }}</p>{% endif %}

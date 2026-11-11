@@ -114,6 +114,16 @@
 </div>
 
 <div class="card">
+  {% if order.customer_id and not order.cancelled_at %}
+  <form method="get" action="/sales/order/{{ order.order_id }}/invoice/print" target="_blank"
+        style="display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
+    {% if not order.payment_confirmed_at %}
+    <label style="margin:0;"><input type="checkbox" name="vat" value="1" style="width:auto;"> รวม VAT</label>
+    {% endif %}
+    <button class="btn small secondary" type="submit">📄 พิมพ์ใบแจ้งหนี้</button>
+  </form>
+  <p class="hint">ใบแจ้งหนี้ใช้แจ้งยอดให้ลูกค้า การพิมพ์ไม่ยืนยันรับชำระเงิน</p>
+  {% endif %}
   {% if order.cancelled_at %}
   {% if order.payment_confirmed_at %}
   <p class="hint">ก่อนถูกยกเลิก บิลนี้เคยยืนยันรับชำระเงินแล้ว — ออกเป็น{{ payment_doc_type_labels.get(order.payment_doc_type, order.payment_doc_type) }}

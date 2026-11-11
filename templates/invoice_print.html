@@ -26,8 +26,8 @@
   .pay-box p, .contact-box p { margin: 2px 0; line-height: 1.5; }
   .sign-box { text-align: center; min-width: 220px; }
   .sign-line { border-top: 1px solid #888; margin-top: 56px; padding-top: 6px; font-size: 13px; }
-  @media print { .no-print { display: none; } body { margin: 0; } }
 </style>
+{% include "_a4_document_print.html" %}
 </head>
 <body>
   <div class="no-print">
@@ -66,7 +66,8 @@
 
   {% if invoice_items %}
   <table>
-    <tr><th>วันที่</th><th>รายการซ่อม</th><th>อะไหล่</th><th>ค่าอะไหล่ (บาท)</th><th>ค่าบริการ (บาท)</th><th>รวม (บาท)</th><th>หมายเหตุช่าง</th></tr>
+    <thead><tr><th>วันที่</th><th>รายการซ่อม</th><th>อะไหล่</th><th>ค่าอะไหล่ (บาท)</th><th>ค่าบริการ (บาท)</th><th>รวม (บาท)</th><th>หมายเหตุช่าง</th></tr></thead>
+    <tbody>
     {% for it in invoice_items %}
     <tr>
       <td>{{ it.created_at }}</td>
@@ -95,6 +96,7 @@
       <td>{{ "%.2f"|format(grand_total) }} บาท</td>
       <td></td>
     </tr>
+  </tbody>
   </table>
   {% else %}
   <p>ไม่มีค่าใช้จ่ายในการซ่อมนี้</p>
